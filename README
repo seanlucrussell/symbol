@@ -1,0 +1,150 @@
+potential advantages of this method
+
+* code style guides are a thing of the past! mostly. we can focus more now on
+  content than minor things like indentation, spaces after commas, and other
+  irrelevant details
+* working directly on AST means that source-code is a lot smaller, and
+  compile times would be a lot faster (and compilers could be a lot easier to
+  write, when everyone isn't worrying about parsing. of course that effort
+  would probably be directed into the renderer, but still seems like it could
+  be a win)
+* syntax errors no more!
+* can also help with type errors
+* just less typing in general
+* you can make different renderers! like lisp? i like you, and you get a
+  lispy renderer. How about C? A classic, of course we have that. Accoustomed
+  to reading javascript? Or perhaps python is your cup of tea. Whatever you
+  like, we can devise a renderer to make most any language look like home, so
+  you can stop worrying about syntax and start learning the meat of a
+  language.
+* take advantage of modern pretty-printing, so theres no more fiddling with
+  layout. Dynamically format your code to fit the screen so long lines split
+  in a nice way in a narrow window, but expand to fill empty space when
+  running fullscreen (if that is your cup of tea)
+* spaces in the middle of variable names? and other bizarre things you can do
+* explorability. when you search for things/learn controls, you get to see all
+  the strange things your language will let you do. when you are worried about
+  producing syntactically correct and typed code, you don't spend much time
+  exploring. when every edit is just a hotkey and you know that every edit will
+  leave your code correct, there is a lot more room for exploration
+  (potentially, we will have to see how this works in general)
+
+Disadvantages
+* copy-pasting code doesn't make sense. you could of course make a parser to
+  import text files to a usable AST, but that sorta defeats the purpose of
+  avoiding writing a parser in the first place, doesn't it? and having flexible
+  renderers and all that?
+* probably more effort to build an editor with the language than to just build
+  the language normally. especially since tooling already exists in the world of
+  language development
+* tight coupling between a language and it's editor. sort of the logical
+  conclusion of the direction IDEs have been going in for a while, but still not
+  wonderful
+* formatting is less flexible. in some ways this is a good thing; really BAD
+  formatting can't be done. but by the same stroke, some useful formatting won't
+  be accsesable either.
+
+todo:
+   - search for valid replacements for the thing under the cursor
+   - more constraints: variables must be declared before use, all paths
+     through a function must return something, types must be correct, the
+     number of arguments to a function must be correct
+   - fake stdlib
+   - make binary operators prettier: remove unecessary parens based on operator
+     precedence
+   - scrolling
+   - real fake type-system
+   - more advanced wrapping behavior
+   - alternative renderers: algol, lisp, python, prose, unreadable
+   - [DONE] top level block shouldn't be indented, shouldn't have spacing,
+     should be immutable
+   - [DONE] more intuitive editing: go to next field, go to previous field,
+     insert before, insert after, move cursor upon edit (i.e. when making a
+     "return _____", put the cursor in the "_____"
+   - variables have numeric ids, the strings representing them are stored in
+     a table (easy variable renaming)
+   - [DONE] infix operators
+   - select wrapping expression/value or something
+   - [DONE] get highlighting right
+   - [DONE] handle multi-character input (for handling numbers / text)
+   - show input while typing
+   - [DONE] pretty-print to width of screen
+   - [DONE] syntax highlighting : different colors for string literals, numeric
+     literals, types, builtins, variables, holes
+   - swap between renderers
+   - status bar? show info about location under cursor, current renderer?
+   - comments? could be useful for annotating code. can be a sort of statement.
+     could also be useful for refactoring; e.g. when a change must mess with
+     code in other portions of the program, commenting out the affected region
+     could provide hints on how to fix things up again.
+   - arrow key navigation (might be dependent on prettyprint/screen width, so
+     this could be a bit complex)
+   - undo/redo
+   - cut/paste
+   - save to/load from file 
+   - something with transformations: there is a symmetry between selectnext and
+     selectprev. is there a way to encode this traversal only one time? instead
+     of having to set it up twice. like a traversal type that can be used to
+     derive the traversals
+
+language constraints
+   - variables must be defined before they are used
+   - function arguments and types must match
+   - the number of arguments to a function must be the same in its definition
+     and all its invocations
+   - every function must return a value (maybe there is a default return value?)
+   - type signiatures must match the assigned type
+
+certain things are defined in such a way that there is only 1 possible type
+that could occupy the hole, so it doesn't make sense to have a hole in the
+first place. i.e. with the assignment, the first thing MUST be a declaration.
+nothing else makes sense. same thing goes for aything with a list in it. the
+list of function args MUST exist and be a list
+
+this might be one of the cases for dependent types? we want a way to generate
+2 new types from this AST definition:
+  1. the zipper for traversing it
+  2. an incomplete AST with holes in it (might be cool to do this with a
+     generic datastructure: make it a datastructure where each item can be
+     maybe)
+and then we wanna combine them. maybe there is a way to do this
+automatically, but that will probably require more cleverness than I am
+capable of. so instead, I think I will just do it the manual, dumb way
+
+constraints on things:
+syntax
+number of arguments
+types
+names need to be bound if they are gonna be used (extension of this: don't
+delete a definition if something else depends on it! or if you do, make sure
+that every instance of that definition gets replaced by a hole)
+every function must have a return value (each path must return)
+
+idea for holes: include type information in holes
+
+Better architecture thing:
+
+Every function that returns maybe (except the navigation functions. maybe)
+should instead return a different type of zipper. and then the ui just has a
+different set of behaviors for each different type of thingamajig. need to think
+how to clarify this a bit
+
+* Ideal user interface
+
+So i think the ideal interface would consist of a couple of parts:
+
+1. modifying values would consist of a dropdown autocomplete sort of thing.
+   You'd start typing, which would restrict the number of possible completions
+   that could be inserted. This completion list would only consist of things
+   that would allow the program to work if inserted, so e.g. correctly typed and
+   in scope. There would also be an allowance for values with literals that
+   don't come from a finite set, so while e.g. boolean values don't need
+   anything special, strings, lists, and numbers need a way for manual input to
+   happen. Also, just a reminder that the autocomplete should probably not
+   search for anything if the user enters a character that would make the
+   currently entered string not match anything.
+2. navigating the code. this is mostly ready right now, but could be streamlined
+
+Once those are in place, the next big step is to consider how well refactoring
+could be done. This will involve copy-pasting probably, in addition to some
+other stuff.

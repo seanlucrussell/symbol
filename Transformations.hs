@@ -264,7 +264,7 @@ replaceWithAssignment :: Zipper -> Zipper
 replaceWithAssignment = replaceWithStatement (Assign (Declare UnknownName UnknownType) UnknownValue)
 
 replaceWithStatement :: Statement -> Zipper -> Zipper
-replaceWithStatement s (ZipperSt _ xs) = selectFirst (ZipperSt s xs)
+replaceWithStatement s (ZipperSt _ xs) = ZipperSt s xs
 replaceWithStatement _ z = z
 
 replaceWithStrType :: Zipper -> Zipper
@@ -280,7 +280,7 @@ replaceWithFnType :: Zipper -> Zipper
 replaceWithFnType = replaceWithType (FunctionType [UnknownType] UnknownType)
 
 replaceWithType :: Type -> Zipper -> Zipper
-replaceWithType t (ZipperTyp _ xs) = selectFirst (ZipperTyp t xs)
+replaceWithType t (ZipperTyp _ xs) = ZipperTyp t xs
 replaceWithType _ z = z
 
 replaceWithName :: T.Text -> Zipper -> Zipper
@@ -316,7 +316,7 @@ replaceWithOp op = replaceWithValue (BinaryOperator UnknownValue op UnknownValue
 
 replaceWithValue :: Value -> Zipper -> Zipper
 replaceWithValue v z@(ZipperVal _ xs) = if valueTypeChecks z v
-                                        then selectFirst (ZipperVal v xs)
+                                        then ZipperVal v xs
                                         else z
 replaceWithValue _ z = z
 
@@ -386,7 +386,6 @@ searchForNamedVariables z = sort (nub (searchAbove ++ searchBefore ++ current ++
 
 standardValues = [ BooleanLiteral True
                  , BooleanLiteral False
-                 -- , Call UnknownValue []
                  , Function [] UnknownStatement
                  , BinaryOperator UnknownValue Add UnknownValue
                  , BinaryOperator UnknownValue Multiply UnknownValue
@@ -547,9 +546,3 @@ valueTypeChecks z = typesAreEqual (expectedType z) . typeOf z
 possibleValues :: Zipper -> [Value]
 possibleValues z = filter (valueTypeChecks z) (allPossibleValues z)
 
-blank :: Zipper -> Zipper
-blank (ZipperVal _ xs) = ZipperVal UnknownValue xs
-blank (ZipperSt _ xs) = ZipperSt UnknownStatement xs
-blank (ZipperNam _ xs) = ZipperNam UnknownName xs
-blank (ZipperTyp _ xs) = ZipperTyp UnknownType xs
-blank z = z

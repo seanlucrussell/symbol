@@ -80,44 +80,13 @@ data ReaderState = AddingText String
 data State = forall r. Renderer r => State r ReaderState Zipper
 
 events :: Key -> Zipper -> Zipper
--- editing statements
-events (KChar 'r')  z@(ZipperSt _ _) = replaceWithReturn z
-events (KChar 'i')  z@(ZipperSt _ _) = replaceWithIf z
-events (KChar 'b')  z@(ZipperSt _ _) = replaceWithBlock z
-events (KChar 'a')  z@(ZipperSt _ _) = replaceWithAssignment z
--- editing types
-events (KChar 'I')  z@(ZipperTyp _ _) = replaceWithIntType z
-events (KChar 'F')  z@(ZipperTyp _ _) = replaceWithFnType z
-events (KChar 'S')  z@(ZipperTyp _ _) = replaceWithStrType z
-events (KChar 'B')  z@(ZipperTyp _ _) = replaceWithBoolType z
--- editing values
-events (KChar 'T')  z@(ZipperVal _ _) = replaceWithTrue z
-events (KChar 'F')  z@(ZipperVal _ _) = replaceWithFalse z
-events (KChar 'i')  z@(ZipperVal _ _) = replaceWithInt 7 z
-events (KChar 'c')  z@(ZipperVal _ _) = replaceWithCall z
-events (KChar 'f')  z@(ZipperVal _ _) = replaceWithFunction z
-events (KChar '=')  z@(ZipperVal _ _) = replaceWithOp Equal z
-events (KChar '<')  z@(ZipperVal _ _) = replaceWithOp LessThan z
-events (KChar '>')  z@(ZipperVal _ _) = replaceWithOp GreaterThan z
-events (KChar '+')  z@(ZipperVal _ _) = replaceWithOp Add z
-events (KChar '*')  z@(ZipperVal _ _) = replaceWithOp Multiply z
-events (KChar '%')  z@(ZipperVal _ _) = replaceWithOp Mod z
-events (KChar '&')  z@(ZipperVal _ _) = replaceWithOp And z
-events (KChar '|')  z@(ZipperVal _ _) = replaceWithOp Or z
--- context independent commands
-events (KChar 'x')  z = deleteAtCursor z
 events (KChar 'n')  z = nextHole z
 events (KChar 'N')  z = previousHole z
 events (KChar 'O')  z = insertBefore z
 events (KChar 'o')  z = insertAfter z
-events (KChar ' ')  z = goup z
-events (KChar '?')  z = blank z
-events (KChar '\t') z = selectNext z
-events KBackTab     z = selectPrev z
-events KEnter       z = selectFirst z
 events  _           z = z
 
-exit renderer = State renderer NotReading . selectNext
+exit renderer = State renderer NotReading . nextHole
 delLast renderer f r c t z = State renderer (f (Prelude.init t)) (r (c (Prelude.init t)) z)
 delWhenEmpty renderer f r z = State renderer (f "") (r z)
 addChar renderer f r t z c = State renderer (f (t ++ [c])) (r (pack (t ++ [c])) z)
@@ -156,7 +125,6 @@ appEvent (State _ a z) (VtyEvent (EvKey (KChar ']') [])) = continue $ State Symb
 appEvent (State _ a z) (VtyEvent (EvKey (KChar '\\') [])) = continue $ State PythonRenderer a z
 appEvent (State renderer NotReading z@(ZipperNam _ _)) (VtyEvent (EvKey (KChar 't') [])) = continue (State renderer (AddingName "") (replaceWithName " " z))
 appEvent r@(State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 't') [])) = if valueTypeChecks z (StringLiteral "") then continue (State renderer (AddingText "") (replaceWithString "" z)) else continue r
--- appEvent (State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'v') [])) = continue (State renderer (AddingVar "") (replaceWithVariable " " z))
 appEvent r@(State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'i') [])) = if valueTypeChecks z (IntLiteral 0) then continue (State renderer (AddingInt "") (replaceWithInt 0 z)) else continue r
 appEvent (State renderer (AddingName t) z) (VtyEvent (EvKey e [])) = continue (handleName renderer t z e)
 appEvent (State renderer (AddingText t) z) (VtyEvent (EvKey e [])) = continue (handleText renderer t z e)
@@ -168,7 +136,7 @@ appEvent (State renderer NotReading z@(ZipperTyp _ _)) (VtyEvent (EvKey (KChar '
 appEvent (State renderer (SelectingType l) z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
 appEvent (State renderer (SelectingType l) z) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
   where z' = case L.listSelectedElement l of
-                  Just (_,v) -> replaceWithType v z
+                  Just (_,v) -> nextHole $ replaceWithType v z
                   Nothing -> z
 appEvent (State renderer (SelectingType l) z) (VtyEvent ev) =
     do l' <- (L.handleListEventVi L.handleListEvent) ev l
@@ -178,7 +146,7 @@ appEvent (State renderer NotReading z@(ZipperSt _ _)) (VtyEvent (EvKey (KChar 'p
 appEvent (State renderer (SelectingStatement l) z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
 appEvent (State renderer (SelectingStatement l) z) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
   where z' = case L.listSelectedElement l of
-                  Just (_,v) -> replaceWithStatement v z
+                  Just (_,v) -> nextHole $ replaceWithStatement v z
                   Nothing -> z
 appEvent (State renderer (SelectingStatement l) z) (VtyEvent ev) =
     do l' <- (L.handleListEventVi L.handleListEvent) ev l
@@ -188,7 +156,7 @@ appEvent (State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar '
 appEvent (State renderer (SelectingValue l) z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
 appEvent (State renderer (SelectingValue l) z@(ZipperVal _ _)) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
   where z' = case L.listSelectedElement l of
-                  Just (_,v) -> replaceWithValue v z
+                  Just (_,v) -> nextHole $ replaceWithValue v z
                   Nothing -> z
 appEvent (State renderer (SelectingValue l) z@(ZipperVal _ _)) (VtyEvent ev) =
     do l' <- (L.handleListEventVi L.handleListEvent) ev l

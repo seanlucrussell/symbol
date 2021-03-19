@@ -39,10 +39,10 @@ data ValueContainer = CallName Value ValueContainer
                     | CallArgs Value ValueContainer
                     | AssignVal Declare AssignmentContainer
                     | OpFirst Op Value ValueContainer
+                    | FnBody Declare ValueContainer
                     | OpSecond Value Op ValueContainer
                     deriving (Eq)
 data DeclareContainer = FnArgs Value ValueContainer
-                      | FnBody Value ValueContainer
                       | AssignDecl Value AssignmentContainer
                       deriving (Eq)
 data NameContainer = DeclareName Type DeclareContainer deriving (Eq)

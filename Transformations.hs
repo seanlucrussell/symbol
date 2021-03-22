@@ -57,7 +57,7 @@ selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 selectFirst' :: Zipper -> Maybe Zipper
 selectFirst' (ZipperDec (Declare n t) ts) = Just $ ZipperNam n (DeclareName t ts)
 selectFirst' (ZipperVal value ts) = case value of
-    Function (Declare n t) b -> Just $ ZipperNam n (DeclareName t (FnArgs b ts))
+    Function d v -> Just $ ZipperDec d (FnArgs v ts)
     Call f a                    -> Just $ ZipperVal f (CallName a ts)
     BinaryOperator a op b       -> Just $ ZipperVal a (OpFirst op b ts)
     StringLiteral _             -> Nothing
@@ -65,7 +65,7 @@ selectFirst' (ZipperVal value ts) = case value of
     BooleanLiteral _            -> Nothing
     Variable _                  -> Nothing
     UnknownValue                -> Nothing
-selectFirst' (ZipperAs (Assign (Declare n t) v) ts) = Just $ ZipperNam n (DeclareName t (AssignDecl v ts))
+selectFirst' (ZipperAs (Assign d v) ts) = Just $ ZipperDec d (AssignDecl v ts)
 selectFirst' (ZipperNam _ _)     = Nothing
 selectFirst' (ZipperTyp t ts) = case t of
     FunctionType a r       -> Just $ ZipperTyp a (FnTypeArgs r ts)
@@ -75,20 +75,18 @@ selectFirst' (ZipperTyp t ts) = case t of
     UnknownType                 -> Nothing
 
 selectPrev' :: Zipper -> Maybe Zipper
-selectPrev' (ZipperNam n parent) = case parent of
-    DeclareName _ _ -> Nothing
+selectPrev' (ZipperNam _ _) = Nothing
 selectPrev' (ZipperTyp t parent) = case parent of
     DeclareType n ts -> Just $ ZipperNam n (DeclareName t ts)
     FnTypeArgs _ _ -> Nothing
-    FnTypeRet _ _ -> Nothing
-selectPrev' (ZipperDec d parent) = case parent of 
-    FnArgs _ _            -> Nothing
-    AssignDecl _ _             -> Nothing
+    FnTypeRet u ts -> Just $ ZipperTyp u (FnTypeArgs t ts)
+selectPrev' (ZipperDec _ _) = Nothing
 selectPrev' (ZipperAs s parent) = case parent of
-    TopLevel (a:as) b          -> Just $ ZipperAs  a (TopLevel as (s:b))
+    TopLevel (a:as) b          -> Just $ ZipperAs a (TopLevel as (s:b))
     TopLevel [] _              -> Nothing
 selectPrev' (ZipperVal v parent) = case parent of
-    AssignVal (Declare n t) ts -> Just $ ZipperTyp t (DeclareType n (AssignDecl v ts))
+    AssignVal d ts -> Just $ ZipperDec d (AssignDecl v ts)
+    -- AssignVal (Declare n t) ts -> Just $ ZipperTyp t (DeclareType n (AssignDecl v ts))
     CallArgs f ts        -> Just $ ZipperVal f (CallName v ts)
     FnBody d ts -> Just $ ZipperDec d (FnArgs v ts)
     OpSecond a op ts           -> Just $ ZipperVal a (OpFirst op v ts)
@@ -101,16 +99,17 @@ selectNext' (ZipperDec d parent) = case parent of
     AssignDecl v ts                  -> Just $ ZipperVal v (AssignVal d ts)
     FnArgs v ts -> Just $ ZipperVal v (FnBody d ts)
 selectNext' (ZipperTyp t parent) = case parent of
-    DeclareType n (AssignDecl v ts)  -> Just $ ZipperVal v (AssignVal (Declare n t) ts)
-    DeclareType n (FnArgs v ts) -> Just $ ZipperVal v (FnBody (Declare n t) ts)
+--    DeclareType n (AssignDecl v ts)  -> Just $ ZipperVal v (AssignVal (Declare n t) ts)
+--    DeclareType n (FnArgs v ts) -> Just $ ZipperVal v (FnBody (Declare n t) ts)
+    DeclareType _ _ -> Nothing
     FnTypeArgs u ts -> Just $ ZipperTyp u (FnTypeRet t ts)
     FnTypeRet _ _ -> Nothing
-selectNext' (ZipperAs  s parent) = case parent of
-    TopLevel a (b:bs)                -> Just $ ZipperAs  b (TopLevel (s:a) bs)
+selectNext' (ZipperAs s parent) = case parent of
+    TopLevel a (b:bs)                -> Just $ ZipperAs b (TopLevel (s:a) bs)
     TopLevel _ []                    -> Nothing
 selectNext' (ZipperVal v parent) = case parent of
     OpFirst op b ts                  -> Just $ ZipperVal b (OpSecond v op ts)
-    CallName _ _                    -> Nothing
+    CallName a ts                    -> Just $ ZipperVal a (CallArgs v ts)
     FnBody _ _                    -> Nothing
     CallArgs _ _                -> Nothing
     AssignVal _ _                    -> Nothing
@@ -123,38 +122,38 @@ zipperOnHole (ZipperNam UnknownName _) = True
 zipperOnHole _ = False
 
 nextHole' :: Zipper -> Maybe Zipper
-nextHole' z = (searchStart z >>= searchDownRight) <|> searchUpRight z
-  where
-    searchStart = if zipperOnHole z then selectNext' else Just
-    searchDownRight :: Zipper -> Maybe Zipper
-    searchDownRight z = (searchChildrenRight z) <|> (selectNext' z >>= searchDownRight)
-    searchChildrenRight :: Zipper -> Maybe Zipper
-    searchChildrenRight z = if zipperOnHole z then Just z else selectFirst' z >>= searchDownRight
-    searchUpRight :: Zipper -> Maybe Zipper
-    searchUpRight z = (parent >>= selectNext' >>= searchDownRight) <|> (parent >>= searchUpRight)
-      where parent = goup' z
+nextHole' w = (searchStart w >>= searchDownRight) <|> searchUpRight w
+   where searchStart = if zipperOnHole w then selectNext' else Just
+
+searchDownRight :: Zipper -> Maybe Zipper
+searchDownRight z = (searchChildrenRight z) <|> (selectNext' z >>= searchDownRight)
+searchChildrenRight :: Zipper -> Maybe Zipper
+searchChildrenRight z = if zipperOnHole z then Just z else selectFirst' z >>= searchDownRight
+searchUpRight :: Zipper -> Maybe Zipper
+searchUpRight z = (parent >>= selectNext' >>= searchDownRight) <|> (parent >>= searchUpRight)
+  where parent = goup' z
 
 
 previousHole' :: Zipper -> Maybe Zipper
-previousHole' z = (selectPrev' z >>= searchDownLeft) <|> searchUpLeft z
-  where
-    searchDownLeft :: Zipper -> Maybe Zipper
-    searchDownLeft z = searchChildrenLeft z <|> (selectPrev' z >>= searchDownLeft)
-    searchChildrenLeft :: Zipper -> Maybe Zipper
-    searchChildrenLeft z = if zipperOnHole z then Just z else selectLast' z >>= searchDownLeft
-    searchUpLeft :: Zipper -> Maybe Zipper
-    searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= searchUpLeft)
-      where parent = goup' z
+previousHole' w = (selectPrev' w >>= searchDownLeft) <|> searchUpLeft w
 
-gouplist a b c = reverse a ++ [b] ++ c
+searchDownLeft :: Zipper -> Maybe Zipper
+searchDownLeft z = searchChildrenLeft z <|> (selectPrev' z >>= searchDownLeft)
+searchChildrenLeft :: Zipper -> Maybe Zipper
+searchChildrenLeft z = if zipperOnHole z then Just z else selectLast' z >>= searchDownLeft
+searchUpLeft :: Zipper -> Maybe Zipper
+searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= searchUpLeft)
+   where parent = goup' z
 
 goup' :: Zipper -> Maybe Zipper
 goup' (ZipperNam n parent) = case parent of
-    DeclareName t (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
-    DeclareName t (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
+    DeclareName t ts -> Just $ ZipperDec (Declare n t) ts
+    -- DeclareName t (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
+    -- DeclareName t (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
 goup' (ZipperTyp t parent) = case parent of
-    DeclareType n (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
-    DeclareType n (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
+    DeclareType n ts -> Just $ ZipperDec (Declare n t) ts
+    -- DeclareType n (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
+    -- DeclareType n (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
     FnTypeArgs a ts -> Just $ ZipperTyp (FunctionType a t) ts
     FnTypeRet a ts -> Just $ ZipperTyp (FunctionType a t) ts
 goup' (ZipperDec d parent) = case parent of
@@ -167,13 +166,7 @@ goup' (ZipperVal v parent) = case parent of
     AssignVal d ts -> Just $ ZipperAs (Assign d v) ts
     OpFirst op b ts -> Just $ ZipperVal (BinaryOperator v op b) ts
     OpSecond a op ts -> Just $ ZipperVal (BinaryOperator a op v) ts
-goup' (ZipperAs s parent) = case parent of
-    TopLevel _ _ -> Nothing 
-
--- helper things
-ins a l n = let (xs,ys) = splitAt n l in xs ++ [a] ++ ys
-remove n l = take n l ++ drop (n+1) l
-splitl l n = (take n l, l !! n, drop (n + 1) l)
+goup' (ZipperAs _ _) = Nothing
 
 insertBefore :: Zipper -> Zipper
 insertBefore (ZipperAs s (TopLevel a b)) = ZipperAs s (TopLevel (Assign (Declare UnknownName UnknownType) UnknownValue:a) b) .- selectPrev
@@ -182,12 +175,6 @@ insertBefore z = z .- goup .- insertBefore
 insertAfter :: Zipper -> Zipper
 insertAfter (ZipperAs s (TopLevel a b)) = ZipperAs s (TopLevel a (Assign (Declare UnknownName UnknownType) UnknownValue:b)) .- selectNext
 insertAfter z = z .- goup .- insertAfter
-
-deleteAtCursor :: Zipper -> Zipper
-deleteAtCursor (ZipperAs a (TopLevel [] [])) = ZipperAs a (TopLevel [] [])
-deleteAtCursor (ZipperAs _ (TopLevel (a:as) [])) = ZipperAs a (TopLevel as [])
-deleteAtCursor (ZipperAs _ (TopLevel a (b:bs))) = ZipperAs b (TopLevel a bs)
-deleteAtCursor z = z
 
 replaceWithStrType :: Zipper -> Zipper
 replaceWithStrType = replaceWithType StringType
@@ -276,7 +263,7 @@ searchForNamedVariables z = sort (nub (searchAbove ++ searchBefore ++ current ++
     args = case goToEnclosingFunction z of
         Just (ZipperVal (Function l _) _) -> extractNameFromDeclList l
         _ -> []
-    extractNameFromZipper z = case z of
+    extractNameFromZipper w = case w of
         ZipperAs s _ -> extractName s
         _ -> Nothing
     extractName s = case s of
@@ -294,6 +281,7 @@ searchForNamedVariables z = sort (nub (searchAbove ++ searchBefore ++ current ++
         Just z' -> searchForNamedVariables z'
         Nothing -> []
 
+standardValues :: [Value]
 standardValues = [ BooleanLiteral True
                  , BooleanLiteral False
                  , Function (Declare UnknownName UnknownType) UnknownValue
@@ -313,7 +301,7 @@ typeOf :: Zipper -> Value -> Type
 typeOf _ (StringLiteral _) = StringType
 typeOf _ (IntLiteral _) = IntegerType
 typeOf _ (BooleanLiteral _) = BooleanType
-typeOf z (Variable v) = fromMaybe UnknownType (searchForVariableType z v)
+typeOf f (Variable w) = fromMaybe UnknownType (searchForVariableType f w)
   where
    searchForVariableType z v = searchAbove <|> searchBefore <|> current <|> args
     where 
@@ -322,11 +310,11 @@ typeOf z (Variable v) = fromMaybe UnknownType (searchForVariableType z v)
     args = case goToEnclosingFunction z of
         Just (ZipperVal (Function l _) _) -> extractTypeFromDeclList l
         _ -> Nothing
-    extractTypeFromZipper z = case z of
+    extractTypeFromZipper y = case y of
         ZipperAs s _ -> extractType s
         _ -> Nothing
     extractType s = case s of
-        Assign (Declare (Name n) s) _ -> if n == v then Just s else Nothing
+        Assign (Declare (Name n) u) _ -> if n == v then Just u else Nothing
         _ -> Nothing
     enclosingStatement = goToEnclosingStatement z
     previousStatements = case enclosingStatement of
@@ -338,9 +326,7 @@ typeOf z (Variable v) = fromMaybe UnknownType (searchForVariableType z v)
     searchAbove = case goup' enclosingStatement of
         Just z' -> searchForVariableType z' v
         Nothing -> Nothing
-typeOf _ (Function a b) = FunctionType (argumentTypes a) UnknownType
-  where
-    argumentTypes (Declare _ t) = t
+typeOf z (Function (Declare _ t) r) = FunctionType t (typeOf z r)
 typeOf z (Call f _) = case typeOf z f of
         FunctionType _ t -> t
         _ -> UnknownType
@@ -357,13 +343,13 @@ typeOf _ (BinaryOperator _ op _) = case op of
 
 returnType :: Zipper -> Type
 returnType z = case goToEnclosingFunction z of
-        Just z -> case expectedType z of
+        Just y -> case expectedType y of
           FunctionType _ t -> t
           _ -> UnknownType -- wtf? this should never happen. weakness in current datatypes
         Nothing -> StringType -- if not in a function definition, must be a string. for output. i guess
 
 expectedType :: Zipper -> Type
-expectedType z@(ZipperVal _ (CallName _ _)) = UnknownType
+expectedType (ZipperVal _ (CallName _ _)) = UnknownType
 expectedType z@(ZipperVal _ (CallArgs f _)) = case typeOf z f of
         FunctionType as _ -> as
         _ -> UnknownType
@@ -419,7 +405,7 @@ validFunctionCalls z = functionCalls
     goodNames = filter nameFilter names
     functionCalls = fmap (nameToFunctionCall . Variable) goodNames
     nameToFunctionCall name = case typeOf z name of
-        FunctionType xs y -> Call name UnknownValue
+        FunctionType _ _ -> Call name UnknownValue
         _ -> UnknownValue -- this should never trigger. type weakness
   
 

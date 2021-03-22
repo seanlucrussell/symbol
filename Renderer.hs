@@ -107,6 +107,7 @@ prettyZip renderer z = prettyZip' z
   encloseTy (FnTypeRet a ts) r = encloseTy ts $ renderFunctionType renderer (prettify renderer a) r
   encloseDc (FnArgs s ts) d = encloseVl ts $ renderFunction renderer d (prettify renderer s)
   encloseDc (AssignDecl v ts) d = encloseAs ts $ renderAssignment renderer d (prettify renderer v)
+  encloseVl (FnBody a ts) f = encloseVl ts $ renderFunction renderer (prettify renderer a) f 
   encloseVl (CallName a ts) f = encloseVl ts $ renderCall renderer f (prettify renderer a)
   encloseVl (CallArgs f ts) v = encloseVl ts $ renderCall renderer (prettify renderer f) v
   encloseVl (AssignVal d ts) v = encloseAs ts $ renderAssignment renderer (prettify renderer d) v

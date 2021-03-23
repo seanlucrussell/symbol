@@ -6,6 +6,7 @@ module Main where
 import Data.Text
 
 import SymbolData
+import Movements
 import Renderer
 import Transformations
 

@@ -57,50 +57,7 @@ data Zipper = ZipperAs Assignment AssignmentContainer
             | ZipperTyp Type TypeContainer
             deriving (Eq,Show)
 
-exampleFunction :: Value
--- exampleFunction = Function
---                     (Declare
---                        (Name "f")
---                        (FunctionType IntegerType IntegerType))
---                     (Call
---                        (Variable "f")
---                        (Call
---                           (Variable "f") 
---                           (IntLiteral 0)))
-exampleFunction = Function
-                    (Declare
-                       (Name "f")
-                       IntegerType)
-                    (Call
-                       (Variable "f")
-                       UnknownValue)
-
-exampleAssignment :: Assignment
-exampleAssignment = Assign (Declare UnknownName UnknownType) exampleFunction
-
 blankAssignment = Assign (Declare UnknownName UnknownType) UnknownValue
 
 example :: Zipper
--- example = ZipperAs exampleAssignment (TopLevel [] [blankAssignment])
-example = ZipperVal (Variable "f") (CallName UnknownValue (FnBody (Declare (Name "f") IntegerType) (AssignVal (Declare UnknownName UnknownType) (TopLevel [] [Assign (Declare UnknownName UnknownType) UnknownValue]))))
--- example = ZipperAs blankAssignment (TopLevel [] [blankAssignment])
---
---
---
--- ZipperVal
---   (Call
---     (Variable "f")
---     UnknownValue)
---   (FnBody
---     (Declare
---       (Name "f")
---       IntegerType)
---     (AssignVal
---       (Declare
---         UnknownName
---         UnknownType)
---       (TopLevel
---         []
---         [Assign (Declare UnknownName UnknownType) UnknownValue])))
--- ZipperVal (Variable "f") (CallName UnknownValue (FnBody (Declare (Name "f") IntegerType) (AssignVal (Declare UnknownName UnknownType) (TopLevel [] [Assign (Declare UnknownName UnknownType) UnknownValue]))))
--- ZipperDec (Declare (Name "f") IntegerType) (FnArgs (Call (Variable "f") UnknownValue) (AssignVal (Declare UnknownName UnknownType) (TopLevel [] [Assign (Declare UnknownName UnknownType) UnknownValue])))
+example = ZipperAs blankAssignment (TopLevel [] [])

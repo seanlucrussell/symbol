@@ -20,18 +20,6 @@ insertAfter :: Zipper -> Zipper
 insertAfter (ZipperAs s (TopLevel a b)) = ZipperAs s (TopLevel a (Assign (Declare UnknownName UnknownType) UnknownValue:b)) .- selectNext
 insertAfter z = z .- goup .- insertAfter
 
-replaceWithStrType :: Zipper -> Zipper
-replaceWithStrType = replaceWithType StringType
-
-replaceWithBoolType :: Zipper -> Zipper
-replaceWithBoolType = replaceWithType BooleanType
-
-replaceWithIntType :: Zipper -> Zipper
-replaceWithIntType = replaceWithType IntegerType
-
-replaceWithFnType :: Zipper -> Zipper
-replaceWithFnType = replaceWithType (FunctionType UnknownType UnknownType)
-
 replaceWithType :: Type -> Zipper -> Zipper
 replaceWithType t (ZipperTyp _ xs) = ZipperTyp t xs
 replaceWithType _ z = z
@@ -49,36 +37,24 @@ replaceWithString t = replaceWithValue (StringLiteral t)
 replaceWithVariable :: T.Text -> Zipper -> Zipper
 replaceWithVariable v = replaceWithValue (Variable v)
 
-replaceWithTrue :: Zipper -> Zipper
-replaceWithTrue = replaceWithValue (BooleanLiteral True)
-
-replaceWithFalse :: Zipper -> Zipper
-replaceWithFalse = replaceWithValue (BooleanLiteral False)
-
-replaceWithCall :: Zipper -> Zipper
-replaceWithCall = replaceWithValue (Call UnknownValue UnknownValue)
-
-replaceWithFunction :: Zipper -> Zipper
-replaceWithFunction z = case possibleFunctionDefinition z of
-        a:_ -> replaceWithValue a z
-        _ -> z
-
-replaceWithOp :: Op -> Zipper -> Zipper
-replaceWithOp op = replaceWithValue (BinaryOperator UnknownValue op UnknownValue)
-
 replaceWithValue :: Value -> Zipper -> Zipper
 replaceWithValue v z@(ZipperVal _ xs) = if valueTypeChecks z v
                                         then ZipperVal v xs
                                         else z
 replaceWithValue _ z = z
 
+typeTypeChecks :: Zipper -> Type -> Bool
+typeTypeChecks z t = typesAreEqual (expectedType z) t
+
+allPossibleTypes :: Zipper -> [Type]
+allPossibleTypes _ = [ FunctionType UnknownType UnknownType
+                     , IntegerType
+                     , BooleanType
+                     , StringType
+                     ]
+
 possibleTypes :: Zipper -> [Type]
-possibleTypes (ZipperTyp _ _) = [ FunctionType UnknownType UnknownType
-                                , IntegerType
-                                , BooleanType
-                                , StringType
-                                ]
-possibleTypes _ = []
+possibleTypes z = filter (typeTypeChecks z) (allPossibleTypes z)
 
 searchForNamedVariables :: Zipper -> [T.Text]
 -- go up to enclosing Block or Top
@@ -175,37 +151,47 @@ typeOf _ (BinaryOperator _ op _) = case op of
         LessThan -> BooleanType
         GreaterThan -> BooleanType
 
-returnType :: Zipper -> Type
-returnType z = case goToEnclosingFunction z of
-        Just y -> case expectedType y of
-          FunctionType _ t -> t
-          _ -> UnknownType -- wtf? this should never happen. weakness in current datatypes
-        Nothing -> StringType -- if not in a function definition, must be a string. for output. i guess
-
 expectedType :: Zipper -> Type
-expectedType (ZipperVal _ (CallName _ _)) = UnknownType
-expectedType z@(ZipperVal _ (CallArgs f _)) = case typeOf z f of
-        FunctionType as _ -> as
-        _ -> UnknownType
-expectedType (ZipperVal _ (AssignVal (Declare _ t) _)) = t
-expectedType (ZipperVal _ (OpFirst op _ _)) = case op of
-        Add -> IntegerType
-        Multiply -> IntegerType
-        GreaterThan -> IntegerType
-        LessThan -> IntegerType
-        Mod -> IntegerType
-        Equal -> UnknownType
-        And -> BooleanType
-        Or -> BooleanType
-expectedType (ZipperVal _ (OpSecond _ op _)) = case op of
-        Add -> IntegerType
-        Multiply -> IntegerType
-        GreaterThan -> IntegerType
-        LessThan -> IntegerType
-        Mod -> IntegerType
-        Equal -> UnknownType
-        And -> BooleanType
-        Or -> BooleanType
+expectedType z@(ZipperVal _ ts) = case ts of
+        CallName _ _ -> UnknownType -- WIP
+        FnBody _ _ -> case expectedType (goup z) of
+            FunctionType _ t -> t
+            _ -> UnknownType -- WIP. should be type of the return value of the parent function
+        CallArgs f _ -> case typeOf z f of
+            FunctionType as _ -> as
+            _ -> UnknownType -- WIP
+        AssignVal (Declare _ t) _ -> t
+        OpFirst op b _ -> case op of
+            Add -> IntegerType
+            Multiply -> IntegerType
+            GreaterThan -> IntegerType
+            LessThan -> IntegerType
+            Mod -> IntegerType
+            Equal -> typeOf z b
+            And -> BooleanType
+            Or -> BooleanType
+        OpSecond a op _ -> case op of
+            Add -> IntegerType
+            Multiply -> IntegerType
+            GreaterThan -> IntegerType
+            LessThan -> IntegerType
+            Mod -> IntegerType
+            Equal -> typeOf z a
+            And -> BooleanType
+            Or -> BooleanType
+expectedType z@(ZipperTyp _ ts) = case ts of
+        DeclareType _ _ -> case goup (goup z) of
+            z@(ZipperVal (Function _ _) _) -> case expectedType z of
+                FunctionType t _ -> t
+                _ -> UnknownType
+            ZipperAs (Assign _ t) _ -> typeOf z t
+            _ -> UnknownType
+        FnTypeArgs _ _ -> case expectedType (goup z) of
+            FunctionType t _ -> t
+            _ -> UnknownType
+        FnTypeRet _ _ -> case expectedType (goup z) of
+            FunctionType _ t -> t
+            _ -> UnknownType
 expectedType _ = UnknownType
 
 typesAreEqual :: Type -> Type -> Bool
@@ -214,20 +200,17 @@ typesAreEqual _ UnknownType = True
 typesAreEqual (FunctionType as r) (FunctionType bs s) = (typesAreEqual as bs) && (typesAreEqual r s)
 typesAreEqual a b = a == b
 
--- create a function that could fit in a given zipper
--- why is it a list? just to fit inside allPossibleValues, cuz I'm lazy atm and
--- not doing smart things
-possibleFunctionDefinition :: Zipper -> [Value]
-possibleFunctionDefinition z = case expectedType z of 
-    FunctionType args _ -> [Function (typeListToDeclList args) UnknownValue]
+possibleFunctionDefinitions :: Zipper -> [Value]
+possibleFunctionDefinitions z = case expectedType z of 
+    FunctionType args _ -> [Function (Declare UnknownName args) UnknownValue]
     _ -> []
-  where
-    typeListToDeclList t = Declare UnknownName t
 
--- include function calls
--- include functions with appropriate arguments
 allPossibleValues :: Zipper -> [Value]
-allPossibleValues z = fmap Variable (searchForNamedVariables z) ++ standardValues ++ possibleFunctionDefinition z ++ validFunctionCalls z
+allPossibleValues z = fmap Variable
+                         (searchForNamedVariables z)
+                      ++ standardValues
+                      ++ possibleFunctionDefinitions z
+                      ++ validFunctionCalls z
 
 validFunctionCalls :: Zipper -> [Value]
 validFunctionCalls z = functionCalls
@@ -242,12 +225,9 @@ validFunctionCalls z = functionCalls
         FunctionType _ _ -> Call name UnknownValue
         _ -> UnknownValue -- this should never trigger. type weakness
   
-
-
 -- check if a given value typechecks
 valueTypeChecks :: Zipper -> Value -> Bool
 valueTypeChecks z = typesAreEqual (expectedType z) . typeOf z
 
 possibleValues :: Zipper -> [Value]
 possibleValues z = filter (valueTypeChecks z) (allPossibleValues z)
-

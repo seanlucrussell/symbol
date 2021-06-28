@@ -145,26 +145,22 @@ searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= sea
    where parent = goup' z
 
 goup' :: Zipper -> Maybe Zipper
-goup' (ZipperNam n parent) = case parent of
-    DeclareName t ts -> Just $ ZipperDec (Declare n t) ts
-    -- DeclareName t (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
-    -- DeclareName t (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
-goup' (ZipperTyp t parent) = case parent of
-    DeclareType n ts -> Just $ ZipperDec (Declare n t) ts
-    -- DeclareType n (AssignDecl v ts) -> Just $ ZipperAs (Assign (Declare n t) v) ts
-    -- DeclareType n (FnArgs a ts) -> Just $ ZipperVal (Function (Declare n t) a) ts
-    FnTypeArgs a ts -> Just $ ZipperTyp (FunctionType a t) ts
-    FnTypeRet a ts -> Just $ ZipperTyp (FunctionType a t) ts
-goup' (ZipperDec d parent) = case parent of
-    FnArgs b ts -> Just $ ZipperVal (Function d b) ts
-    AssignDecl v ts -> Just $ ZipperAs (Assign d v) ts
-goup' (ZipperVal v parent) = case parent of
-    CallName a ts -> Just $ ZipperVal (Call v a) ts
-    CallArgs f ts -> Just $ ZipperVal (Call f v) ts
-    FnBody d ts -> Just $ ZipperVal (Function d v) ts
-    AssignVal d ts -> Just $ ZipperAs (Assign d v) ts
-    OpFirst op b ts -> Just $ ZipperVal (BinaryOperator v op b) ts
-    OpSecond a op ts -> Just $ ZipperVal (BinaryOperator a op v) ts
+goup' (ZipperNam n parent) = Just $ case parent of
+    DeclareName t ts -> ZipperDec (Declare n t) ts
+goup' (ZipperTyp t parent) = Just $ case parent of
+    DeclareType n ts -> ZipperDec (Declare n t) ts
+    FnTypeArgs a ts -> ZipperTyp (FunctionType a t) ts
+    FnTypeRet a ts -> ZipperTyp (FunctionType a t) ts
+goup' (ZipperDec d parent) = Just $ case parent of
+    FnArgs b ts -> ZipperVal (Function d b) ts
+    AssignDecl v ts -> ZipperAs (Assign d v) ts
+goup' (ZipperVal v parent) = Just $ case parent of
+    CallName a ts -> ZipperVal (Call v a) ts
+    CallArgs f ts -> ZipperVal (Call f v) ts
+    FnBody d ts -> ZipperVal (Function d v) ts
+    AssignVal d ts -> ZipperAs (Assign d v) ts
+    OpFirst op b ts -> ZipperVal (BinaryOperator v op b) ts
+    OpSecond a op ts -> ZipperVal (BinaryOperator a op v) ts
 goup' (ZipperAs _ _) = Nothing
 
 goToEnclosingStatement :: Zipper -> Zipper

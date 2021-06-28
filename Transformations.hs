@@ -87,7 +87,7 @@ searchForNamedVariables z = sort (nub (searchAbove ++ searchBefore ++ current ++
         Just n -> [n]
         Nothing -> []
     searchBefore = catMaybes (fmap extractName previousStatements)
-    searchAbove = case goup' enclosingStatement of
+    searchAbove = case goToEnclosingFunction z >>= goup' of
         Just z' -> searchForNamedVariables z'
         Nothing -> []
 

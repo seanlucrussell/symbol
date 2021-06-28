@@ -76,7 +76,7 @@ typeOf c (ConditionalTerm b x y) = do bType <- typeOf c b
 typeOf _ UnknownTerm = Just UnknownType
 typeOf _ _ = Nothing
 
-data Container = TopLevel [Term] [Term] Container
+data Container = TopLevel [Term] [Term]
                | FunctionArg Term Term Container
                | FunctionArgType Term Term Container
                | FunctionBody Term Term Container
@@ -91,6 +91,31 @@ data Container = TopLevel [Term] [Term] Container
                | FnTypeRet Term Container
                deriving (Eq,Show)
 
+data Zipper = Zipper Term Container
+
+goUp :: Term -> Container -> (Term, Maybe Container)
+goUp t (TopLevel as bs) = (Program ((reverse as) ++ [t] ++ bs), Nothing)
+goUp t (FunctionArg a b c) = (FunctionTerm t a b, Just c)
+goUp t (FunctionArgType a b c) = (FunctionTerm a t b, Just c)
+goUp t (FunctionBody a b c) = (FunctionTerm a b t, Just c)
+goUp t (ApplicationFn a c) = (ApplicationTerm t a, Just c)
+goUp t (ApplicationArg a c) = (ApplicationTerm a t, Just c)
+goUp t (ConditionalCond a b c) = (ConditionalTerm t a b, Just c)
+goUp t (ConditionalOptOne a b c) = (ConditionalTerm a t b, Just c)
+goUp t (ConditionalOptTwo a b c) = (ConditionalTerm a b t, Just c)
+goUp t (AssignmentId a c) = (Assignment t a, Just c)
+goUp t (AssignmentVal a c) = (Assignment a t, Just c)
+goUp t (FnTypeArg a c) = (FnTypeTerm t a, Just c)
+goUp t (FnTypeRet a c) = (FnTypeTerm a t, Just c)
+
+zipperToTerm :: Zipper -> Term
+zipperToTerm (Zipper t c) = goToTop t (Just c)
+        where goToTop t' (Just c') = let (t'',c'') = goUp t' c' in goToTop t'' c''
+              goToTop t' Nothing = t'
+
+validateZipper :: Zipper -> Bool
+validateZipper = validateProgram . zipperToTerm
+
 t = BooleanLiteralTerm True
 f = BooleanLiteralTerm False
 cond = ConditionalTerm
@@ -101,3 +126,5 @@ ident = IdentifierTerm
 g = fun (ident "a") (BoolTypeTerm) (cond (ident "a") f t)
 h = fun (ident "f") (FnTypeTerm BoolTypeTerm BoolTypeTerm) (ApplicationTerm (ident "f") t)
 p = Program [assign (ident "g") g, assign (ident "h") h, assign (ident "result") (app (ident "h") (ident "g"))]
+
+z = Zipper (assign (ident "h") h) (TopLevel [assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g"))])

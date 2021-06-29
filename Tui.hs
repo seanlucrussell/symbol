@@ -8,7 +8,7 @@ import Data.Text
 import SymbolData
 import Movements
 import Renderer
--- import Transformations
+import Transformations
 
 import Graphics.Vty
 import Brick
@@ -47,49 +47,45 @@ popup renderer l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
               L.renderList listDrawElement True l
 
 drawUI :: State -> [Widget ()]
-drawUI (State renderer (SelectingValue l) z) = [popup renderer l, zipperToWidget renderer z]
-drawUI (State renderer (SelectingStatement l) z) = [popup renderer l, zipperToWidget renderer z]
-drawUI (State renderer (SelectingType l) z) = [popup renderer l, zipperToWidget renderer z]
+drawUI (State renderer (SelectingTerm l) z) = [popup renderer l, zipperToWidget renderer z]
 drawUI (State renderer _ z) = [zipperToWidget renderer z]
 
 data ReaderState = AddingText String
                  | AddingName String
                  | AddingVar String
                  | AddingInt String
-                 | SelectingValue (L.List () Term)
-                 | SelectingStatement (L.List () Term)
-                 | SelectingType (L.List () Term)
+                 | SelectingTerm (L.List () Term)
                  | NotReading
 data State = State Renderer ReaderState Zipper
 
 events :: Key -> Zipper -> Zipper
 events (KChar 'n')  z = nextHole z
 events (KChar 'N')  z = previousHole z
--- events (KChar 'O')  z = insertBefore z
--- events (KChar 'o')  z = insertAfter z
+events (KChar 'O')  z = insertBefore z
+events (KChar 'o')  z = insertAfter z
 events (KChar 'j')  z = selectFirst z
 events (KChar 'l')  z = selectNext z
 events (KChar 'h')  z = selectPrev z
 events (KChar 'k')  z = goup z
 events  _           z = z
 
--- exit :: Renderer -> Zipper -> State
--- exit renderer = State renderer NotReading . nextHole
--- delLast :: Renderer -> ([a] -> ReaderState) -> (t1 -> t2 -> Zipper) -> ([a] -> t1) -> [a] -> t2 -> State
--- delLast renderer f r c t z = State renderer (f (Prelude.init t)) (r (c (Prelude.init t)) z)
--- delWhenEmpty :: Renderer -> (String -> ReaderState) -> (Zipper -> Zipper) -> Zipper -> State
--- delWhenEmpty renderer f r z = State renderer (f "") (r z)
--- addChar :: Renderer -> (String -> ReaderState) -> (Text -> t -> Zipper) -> String -> t -> Char -> State
--- addChar renderer f r t z c = State renderer (f (t ++ [c])) (r (pack (t ++ [c])) z)
--- 
--- readingAssistant :: Renderer -> (String -> ReaderState) -> (Text -> Zipper -> Zipper) -> Text -> String -> Zipper -> Key -> State
--- readingAssistant renderer f r _ t   z (KChar c) = addChar renderer f r t z c
--- readingAssistant renderer f r d []  z KBS       = delWhenEmpty renderer f (r d) z
--- readingAssistant renderer f r d [_] z KBS       = delWhenEmpty renderer f (r d) z
--- readingAssistant renderer f r _ t   z KBS       = delLast renderer f r pack t z
--- readingAssistant renderer _ _ _ _   z KEnter    = exit renderer z
--- readingAssistant renderer _ _ _ _   z _         = exit renderer z
--- 
+exit :: Renderer -> Zipper -> State
+exit renderer = State renderer NotReading . nextHole
+delLast :: Renderer -> ([a] -> ReaderState) -> (t1 -> t2 -> Zipper) -> ([a] -> t1) -> [a] -> t2 -> State
+delLast renderer f r c t z = State renderer (f (Prelude.init t)) (r (c (Prelude.init t)) z)
+delWhenEmpty :: Renderer -> (String -> ReaderState) -> (Zipper -> Zipper) -> Zipper -> State
+delWhenEmpty renderer f r z = State renderer (f "") (r z)
+addChar :: Renderer -> (String -> ReaderState) -> (Text -> t -> Zipper) -> String -> t -> Char -> State
+addChar renderer f r t z c = State renderer (f (t ++ [c])) (r (pack (t ++ [c])) z)
+
+readingAssistant :: Renderer -> (String -> ReaderState) -> (Text -> Zipper -> Zipper) -> Text -> String -> Zipper -> Key -> State
+readingAssistant renderer f r _ t   z (KChar c) = addChar renderer f r t z c
+readingAssistant renderer f r d []  z KBS       = delWhenEmpty renderer f (r d) z
+readingAssistant renderer f r d [_] z KBS       = delWhenEmpty renderer f (r d) z
+readingAssistant renderer f r _ t   z KBS       = delLast renderer f r pack t z
+readingAssistant renderer _ _ _ _   z KEnter    = exit renderer z
+readingAssistant renderer _ _ _ _   z _         = exit renderer z
+
 -- handleInt :: Renderer -> String -> Zipper -> Key -> State
 -- handleInt renderer t z (KChar c) = case maybeNum of 
 --                                Just n -> State renderer (AddingInt (t ++ [c])) (replaceWithInt n z)
@@ -124,25 +120,16 @@ appEvent :: State -> BrickEvent n e -> EventM () (Next State)
 -- appEvent (State renderer (AddingInt t) z) (VtyEvent (EvKey e [])) = continue (handleInt renderer t z e)
 appEvent s (VtyEvent (EvKey KEsc [])) = halt s
 -- 
--- appEvent (State renderer NotReading z@(ZipperTyp _ _)) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer (SelectingType (L.list () (Vec.fromList (possibleTypes z)) 1)) z)
--- appEvent (State renderer (SelectingType _) z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
--- appEvent (State renderer (SelectingType l) z) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
---   where z' = case L.listSelectedElement l of
---                   Just (_,v) -> nextHole $ replaceWithType v z
---                   Nothing -> z
--- appEvent (State renderer (SelectingType l) z) (VtyEvent ev) =
---     do l' <- (L.handleListEventVi L.handleListEvent) ev l
---        continue (State renderer (SelectingType l') z)
--- 
--- appEvent (State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer (SelectingValue (L.list () (Vec.fromList (possibleValues z)) 1)) z)
--- appEvent (State renderer (SelectingValue _) z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
--- appEvent (State renderer (SelectingValue l) z@(ZipperVal _ _)) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
---   where z' = case L.listSelectedElement l of
---                   Just (_,v) -> nextHole $ replaceWithValue v z
---                   Nothing -> z
--- appEvent (State renderer (SelectingValue l) z@(ZipperVal _ _)) (VtyEvent ev) =
---     do l' <- (L.handleListEventVi L.handleListEvent) ev l
---        continue (State renderer (SelectingValue l') z)
+
+appEvent (State renderer NotReading z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer (SelectingTerm (L.list () (Vec.fromList (possibleTerms z)) 1)) z)
+appEvent (State renderer (SelectingTerm _) z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)
+appEvent (State renderer (SelectingTerm l) z) (VtyEvent (EvKey KEnter [])) = continue (State renderer NotReading z')
+  where z' = case L.listSelectedElement l of
+                  Just (_,v) -> nextHole $ replaceWithTerm v z
+                  Nothing -> z
+appEvent (State renderer (SelectingTerm l) z) (VtyEvent ev) =
+    do l' <- (L.handleListEventVi L.handleListEvent) ev l
+       continue (State renderer (SelectingTerm l') z)
 
 appEvent (State renderer NotReading z) (VtyEvent (EvKey k [])) = continue (State renderer NotReading (events k z))
 appEvent s _                               = continue s

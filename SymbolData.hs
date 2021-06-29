@@ -54,6 +54,7 @@ termToType (FnTypeTerm a b) = do a' <- termToType a
                                  return (FunctionType a' b')
 termToType BoolTypeTerm = Just BooleanType
 termToType UnknownTerm = Just UnknownType
+termToType _ = Nothing
 
 -- returns Nothing if the type checking is invalid
 typeOf :: Context -> Term -> Maybe Type
@@ -65,6 +66,7 @@ typeOf c (ApplicationTerm f x) = do fType <- typeOf c f
                                     xType <- typeOf c x
                                     case fType of   
                                       FunctionType a b -> if typeEquality xType a then return b else Nothing
+                                      UnknownType -> Just UnknownType
                                       _ -> Nothing
 typeOf _ (BooleanLiteralTerm _) = Just BooleanType
 typeOf c (ConditionalTerm b x y) = do bType <- typeOf c b
@@ -127,4 +129,4 @@ g = fun (ident "a") (BoolTypeTerm) (cond (ident "a") f t)
 h = fun (ident "f") (FnTypeTerm BoolTypeTerm BoolTypeTerm) (ApplicationTerm (ident "f") t)
 p = Program [assign (ident "g") g, assign (ident "h") h, assign (ident "result") (app (ident "h") (ident "g"))]
 
-z = Zipper (assign (ident "h") h) (TopLevel [UnknownTerm, assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g")), UnknownTerm])
+z = Zipper (assign (ident "h") h) (TopLevel [assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g"))])

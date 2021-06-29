@@ -39,6 +39,9 @@ import Lens.Micro
 -- renderTerm (BoolTypeTerm) = annotate Yellow "Bool"
 -- renderTerm (Assignment a b) = renderTerm a <+> "=" <+> renderTerm b
 
+
+-- generic rendering things
+
 data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
                          , renderFunction :: Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
                          , renderApplication :: Doc Marking -> Doc Marking -> Doc Marking
@@ -49,6 +52,36 @@ data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
                          , renderBoolType :: Doc Marking
                          , renderAssignment :: Doc Marking -> Doc Marking -> Doc Marking
                          , renderProgram :: [Doc Marking] -> Doc Marking }
+
+renderZipper :: Renderer -> Zipper -> Doc Marking
+renderZipper r (Zipper t c) = enclose (renderTerm r t) c
+        where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
+              enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
+              enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c
+              enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm r x) (renderTerm r y) t) c
+              enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm r x)) c
+              enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm r x) t) c
+              enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm r x) (renderTerm r y)) c
+              enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm r x) t (renderTerm r y)) c
+              enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm r x) (renderTerm r y) t) c
+              enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm r x)) c
+              enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm r x) t) c
+              enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
+              enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
+
+renderTerm :: Renderer -> Term -> Doc Marking
+renderTerm r (IdentifierTerm i) = renderIdentifier r (pretty i)
+renderTerm r (FunctionTerm a b c) = renderFunction r (renderTerm r a) (renderTerm r b) (renderTerm r c)
+renderTerm r (ApplicationTerm a b) = renderApplication r (renderTerm r a) (renderTerm r b)
+renderTerm r (BooleanLiteralTerm a) = renderBooleanLiteral r (pretty a)
+renderTerm r (ConditionalTerm a b c) = renderConditional r (renderTerm r a) (renderTerm r b) (renderTerm r c)
+renderTerm r (UnknownTerm) = renderUnknown r
+renderTerm r (FnTypeTerm a b) = renderFnType r (renderTerm r a) (renderTerm r b)
+renderTerm r (BoolTypeTerm) = renderBoolType r
+renderTerm r (Assignment a b) = renderAssignment r (renderTerm r a) (renderTerm r b)
+renderTerm r (Program a) = renderProgram r (fmap (renderTerm r) a)
+
+-- specific renderers
 
 basicRenderer :: Renderer 
 basicRenderer = Renderer { renderIdentifier = \t -> annotate White t
@@ -61,32 +94,6 @@ basicRenderer = Renderer { renderIdentifier = \t -> annotate White t
                          , renderBoolType = annotate Yellow "Bool"
                          , renderAssignment = \a b -> a <+> "=" <+> b
                          , renderProgram = \a -> vsep (punctuate line a) }
-
-renderZipper :: Renderer -> Zipper -> Doc Marking
-renderZipper r (Zipper t c) = enclose (renderTerm t) c
-        where enclose t (TopLevel a b) = renderProgram r (fmap renderTerm (reverse a) ++ [t] ++ fmap renderTerm b)
-              enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm x) (renderTerm y)) c
-              enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm x) t (renderTerm y)) c
-              enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm x) (renderTerm y) t) c
-              enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm x)) c
-              enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm x) t) c
-              enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm x) (renderTerm y)) c
-              enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm x) t (renderTerm y)) c
-              enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm x) (renderTerm y) t) c
-              enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm x)) c
-              enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm x) t) c
-              enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm x)) c
-              enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm x) t) c
-              renderTerm (IdentifierTerm i) = renderIdentifier r (pretty i)
-              renderTerm (FunctionTerm a b c) = renderFunction r (renderTerm a) (renderTerm b) (renderTerm c)
-              renderTerm (ApplicationTerm a b) = renderApplication r (renderTerm a) (renderTerm b)
-              renderTerm (BooleanLiteralTerm a) = renderBooleanLiteral r (pretty a)
-              renderTerm (ConditionalTerm a b c) = renderConditional r (renderTerm a) (renderTerm b) (renderTerm c)
-              renderTerm (UnknownTerm) = renderUnknown r
-              renderTerm (FnTypeTerm a b) = renderFnType r (renderTerm a) (renderTerm b)
-              renderTerm (BoolTypeTerm) = renderBoolType r
-              renderTerm (Assignment a b) = renderAssignment r (renderTerm a) (renderTerm b)
-              renderTerm (Program a) = renderProgram r (fmap renderTerm a)
 
 
 -- prettyZip :: Renderer -> Zipper -> Doc Marking

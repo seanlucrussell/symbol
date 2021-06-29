@@ -54,7 +54,7 @@ data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
                          , renderProgram :: [Doc Marking] -> Doc Marking }
 
 renderZipper :: Renderer -> Zipper -> Doc Marking
-renderZipper r (Zipper t c) = enclose (renderTerm r t) c
+renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm r t)) c
         where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
               enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
               enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c

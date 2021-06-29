@@ -129,7 +129,7 @@ selectNext' (Zipper t z) = case z of
     TopLevel as [] -> Nothing
     TopLevel as (b:bs) -> Just (Zipper b (TopLevel (t:as) bs))
     FunctionArg a b c' -> Just (Zipper a (FunctionArgType t b c'))
-    FunctionArgType a b c' -> Just (Zipper b (FunctionArg t a c'))
+    FunctionArgType a b c' -> Just (Zipper b (FunctionBody a t c'))
     FunctionBody a b c' -> Nothing
     ApplicationFn a c' -> Just (Zipper a (ApplicationArg t c'))
     ApplicationArg a c' -> Nothing

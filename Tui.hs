@@ -6,7 +6,7 @@ module Main where
 import Data.Text
 
 import SymbolData
--- import Movements
+import Movements
 import Renderer
 -- import Transformations
 
@@ -63,14 +63,14 @@ data ReaderState = AddingText String
 data State = State Renderer ReaderState Zipper
 
 events :: Key -> Zipper -> Zipper
--- events (KChar 'n')  z = nextHole z
--- events (KChar 'N')  z = previousHole z
+events (KChar 'n')  z = nextHole z
+events (KChar 'N')  z = previousHole z
 -- events (KChar 'O')  z = insertBefore z
 -- events (KChar 'o')  z = insertAfter z
--- events (KChar 'j')  z = selectFirst z
--- events (KChar 'l')  z = selectNext z
--- events (KChar 'h')  z = selectPrev z
--- events (KChar 'k')  z = goup z
+events (KChar 'j')  z = selectFirst z
+events (KChar 'l')  z = selectNext z
+events (KChar 'h')  z = selectPrev z
+events (KChar 'k')  z = goup z
 events  _           z = z
 
 -- exit :: Renderer -> Zipper -> State
@@ -122,7 +122,7 @@ appEvent :: State -> BrickEvent n e -> EventM () (Next State)
 -- appEvent (State renderer (AddingText t) z) (VtyEvent (EvKey e [])) = continue (handleText renderer t z e)
 -- appEvent (State renderer (AddingVar t) z) (VtyEvent (EvKey e [])) = continue (handleVar renderer t z e)
 -- appEvent (State renderer (AddingInt t) z) (VtyEvent (EvKey e [])) = continue (handleInt renderer t z e)
--- appEvent s (VtyEvent (EvKey KEsc [])) = halt s
+appEvent s (VtyEvent (EvKey KEsc [])) = halt s
 -- 
 -- appEvent (State renderer NotReading z@(ZipperTyp _ _)) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer (SelectingType (L.list () (Vec.fromList (possibleTypes z)) 1)) z)
 -- appEvent (State renderer (SelectingType _) z) (VtyEvent (EvKey (KChar 'p') [])) = continue (State renderer NotReading z)

@@ -3,6 +3,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Main where
 
+-- need to fix bug with text insertion still
+
 import Data.Text
 
 import SymbolData
@@ -97,10 +99,10 @@ readingAssistant renderer _ _ _ _   z _         = exit renderer z
 -- handleInt renderer t z KBS = delLast renderer AddingInt replaceWithInt (read :: String -> Integer) t z
 -- handleInt renderer _ z KEnter = exit renderer z
 -- handleInt renderer _ z _ = exit renderer z
--- 
--- handleName :: Renderer -> String -> Zipper -> Key -> State
--- handleName r = readingAssistant r AddingName replaceWithName " "
--- 
+
+handleName :: Renderer -> String -> Zipper -> Key -> State
+handleName r = readingAssistant r AddingName (\x -> replaceWithTerm (IdentifierTerm x)) " "
+
 -- handleText :: Renderer -> String -> Zipper -> Key -> State
 -- handleText r = readingAssistant r AddingText replaceWithString ""
 -- 
@@ -111,10 +113,10 @@ appEvent :: State -> BrickEvent n e -> EventM () (Next State)
 -- -- appEvent (State _ a z) (VtyEvent (EvKey (KChar '[') [])) = continue $ State LispRenderer a z
 -- appEvent (State _ a z) (VtyEvent (EvKey (KChar ']') [])) = continue $ State SymbolRenderer a z
 -- -- appEvent (State _ a z) (VtyEvent (EvKey (KChar '\\') [])) = continue $ State PythonRenderer a z
--- appEvent (State renderer NotReading z@(ZipperNam _ _)) (VtyEvent (EvKey (KChar 't') [])) = continue (State renderer (AddingName "") (replaceWithName " " z))
--- appEvent r@(State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 't') [])) = if valueTypeChecks z (StringLiteral "") then continue (State renderer (AddingText "") (replaceWithString "" z)) else continue r
--- appEvent r@(State renderer NotReading z@(ZipperVal _ _)) (VtyEvent (EvKey (KChar 'i') [])) = if valueTypeChecks z (IntLiteral 0) then continue (State renderer (AddingInt "") (replaceWithInt 0 z)) else continue r
--- appEvent (State renderer (AddingName t) z) (VtyEvent (EvKey e [])) = continue (handleName renderer t z e)
+appEvent (State renderer NotReading z) (VtyEvent (EvKey (KChar 't') [])) = continue (State renderer (AddingName "") (replaceWithTerm (IdentifierTerm " ") z))
+-- appEvent r@(State renderer NotReading z) (VtyEvent (EvKey (KChar 't') [])) = if valueTypeChecks z (StringLiteral "") then continue (State renderer (AddingText "") (replaceWithString "" z)) else continue r
+-- appEvent r@(State renderer NotReading z) (VtyEvent (EvKey (KChar 'i') [])) = if valueTypeChecks z (IntLiteral 0) then continue (State renderer (AddingInt "") (replaceWithInt 0 z)) else continue r
+appEvent (State renderer (AddingName t) z) (VtyEvent (EvKey e [])) = continue (handleName renderer t z e)
 -- appEvent (State renderer (AddingText t) z) (VtyEvent (EvKey e [])) = continue (handleText renderer t z e)
 -- appEvent (State renderer (AddingVar t) z) (VtyEvent (EvKey e [])) = continue (handleVar renderer t z e)
 -- appEvent (State renderer (AddingInt t) z) (VtyEvent (EvKey e [])) = continue (handleInt renderer t z e)

@@ -28,6 +28,9 @@ validateProgram (Program t) = validateProgram' baseContext t
         where validateProgram' c (Assignment (IdentifierTerm a) b:ts) = case typeOf c b of
                 Just t -> validateProgram' (updateContext c a t) ts
                 Nothing -> False
+              validateProgram' c (Assignment UnknownTerm b:ts) = case typeOf c b of
+                Just t -> validateProgram' c ts
+                Nothing -> False
               validateProgram' _ [] = True
               validateProgram' _ _ = False
 validateProgram _ = False
@@ -59,6 +62,9 @@ termToType _ = Nothing
 -- returns Nothing if the type checking is invalid
 typeOf :: Context -> Term -> Maybe Type
 typeOf c (IdentifierTerm i) = Just (c i)
+typeOf c (FunctionTerm UnknownTerm t b) = do argType <- termToType t
+                                             bodyType <- typeOf c b
+                                             return (FunctionType argType bodyType)
 typeOf c (FunctionTerm (IdentifierTerm i) t b) = do argType <- termToType t
                                                     bodyType <- typeOf (updateContext c i argType) b
                                                     return (FunctionType argType bodyType)

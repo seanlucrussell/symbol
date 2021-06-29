@@ -91,7 +91,7 @@ data Container = TopLevel [Term] [Term]
                | FnTypeRet Term Container
                deriving (Eq,Show)
 
-data Zipper = Zipper Term Container
+data Zipper = Zipper Term Container deriving (Eq,Show)
 
 goUp :: Term -> Container -> (Term, Maybe Container)
 goUp t (TopLevel as bs) = (Program ((reverse as) ++ [t] ++ bs), Nothing)

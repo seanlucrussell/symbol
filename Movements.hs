@@ -54,71 +54,8 @@ goup = try goup'
 selectLast' :: Zipper -> Maybe Zipper
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 
-selectFirst' :: Zipper -> Maybe Zipper
-selectFirst' (ZipperDec (Declare n t) ts) = Just $ ZipperNam n (DeclareName t ts)
-selectFirst' (ZipperVal value ts) = case value of
-    Function d v -> Just $ ZipperDec d (FnArgs v ts)
-    Call f a                    -> Just $ ZipperVal f (CallName a ts)
-    BinaryOperator a op b       -> Just $ ZipperVal a (OpFirst op b ts)
-    StringLiteral _             -> Nothing
-    IntLiteral _                -> Nothing
-    BooleanLiteral _            -> Nothing
-    Variable _                  -> Nothing
-    UnknownValue                -> Nothing
-selectFirst' (ZipperAs (Assign d v) ts) = Just $ ZipperDec d (AssignDecl v ts)
-selectFirst' (ZipperNam _ _)     = Nothing
-selectFirst' (ZipperTyp t ts) = case t of
-    FunctionType a r       -> Just $ ZipperTyp a (FnTypeArgs r ts)
-    StringType                  -> Nothing
-    BooleanType                 -> Nothing
-    IntegerType                 -> Nothing
-    UnknownType                 -> Nothing
-
-selectPrev' :: Zipper -> Maybe Zipper
-selectPrev' (ZipperNam _ _) = Nothing
-selectPrev' (ZipperTyp t parent) = case parent of
-    DeclareType n ts -> Just $ ZipperNam n (DeclareName t ts)
-    FnTypeArgs _ _ -> Nothing
-    FnTypeRet u ts -> Just $ ZipperTyp u (FnTypeArgs t ts)
-selectPrev' (ZipperDec _ _) = Nothing
-selectPrev' (ZipperAs s parent) = case parent of
-    TopLevel (a:as) b          -> Just $ ZipperAs a (TopLevel as (s:b))
-    TopLevel [] _              -> Nothing
-selectPrev' (ZipperVal v parent) = case parent of
-    AssignVal d ts -> Just $ ZipperDec d (AssignDecl v ts)
-    -- AssignVal (Declare n t) ts -> Just $ ZipperTyp t (DeclareType n (AssignDecl v ts))
-    CallArgs f ts        -> Just $ ZipperVal f (CallName v ts)
-    FnBody d ts -> Just $ ZipperDec d (FnArgs v ts)
-    OpSecond a op ts           -> Just $ ZipperVal a (OpFirst op v ts)
-    CallName _ _               -> Nothing
-    OpFirst _ _ _              -> Nothing
-
-selectNext' :: Zipper -> Maybe Zipper
-selectNext' (ZipperNam n (DeclareName t ts)) = Just $ ZipperTyp t (DeclareType n ts)
-selectNext' (ZipperDec d parent) = case parent of
-    AssignDecl v ts                  -> Just $ ZipperVal v (AssignVal d ts)
-    FnArgs v ts -> Just $ ZipperVal v (FnBody d ts)
-selectNext' (ZipperTyp t parent) = case parent of
---    DeclareType n (AssignDecl v ts)  -> Just $ ZipperVal v (AssignVal (Declare n t) ts)
---    DeclareType n (FnArgs v ts) -> Just $ ZipperVal v (FnBody (Declare n t) ts)
-    DeclareType _ _ -> Nothing
-    FnTypeArgs u ts -> Just $ ZipperTyp u (FnTypeRet t ts)
-    FnTypeRet _ _ -> Nothing
-selectNext' (ZipperAs s parent) = case parent of
-    TopLevel a (b:bs)                -> Just $ ZipperAs b (TopLevel (s:a) bs)
-    TopLevel _ []                    -> Nothing
-selectNext' (ZipperVal v parent) = case parent of
-    OpFirst op b ts                  -> Just $ ZipperVal b (OpSecond v op ts)
-    CallName a ts                    -> Just $ ZipperVal a (CallArgs v ts)
-    FnBody _ _                    -> Nothing
-    CallArgs _ _                -> Nothing
-    AssignVal _ _                    -> Nothing
-    OpSecond _ _ _                   -> Nothing
-
 zipperOnHole :: Zipper -> Bool
-zipperOnHole (ZipperVal UnknownValue _) = True
-zipperOnHole (ZipperTyp UnknownType _) = True
-zipperOnHole (ZipperNam UnknownName _) = True
+zipperOnHole (Zipper UnknownTerm _) = True
 zipperOnHole _ = False
 
 nextHole' :: Zipper -> Maybe Zipper
@@ -144,31 +81,79 @@ searchUpLeft :: Zipper -> Maybe Zipper
 searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= searchUpLeft)
    where parent = goup' z
 
+-- goToEnclosingStatement :: Zipper -> Zipper
+-- goToEnclosingStatement z@(Zipper _ (TopLevel _ _))   = z
+-- goToEnclosingStatement z = case goup' z of
+--         Just z' -> goToEnclosingStatement z'
+--         Nothing -> z
+-- 
+-- goToEnclosingFunction :: Zipper -> Maybe Zipper
+-- goToEnclosingFunction z@(Zipper (Function _ _) _) = Just z
+-- goToEnclosingFunction z = goup' z >>= goToEnclosingFunction
+
+-- This stuff needs to change when language features are added
+
+selectFirst' :: Zipper -> Maybe Zipper
+selectFirst' (Zipper t c) = case t of
+    IdentifierTerm _ -> Nothing
+    FunctionTerm x y z -> Just (Zipper x (FunctionArg y z c))
+    ApplicationTerm x y -> Just (Zipper x (ApplicationFn y c))
+    BooleanLiteralTerm _ -> Nothing
+    ConditionalTerm x y z -> Just (Zipper x (ConditionalCond y z c))
+    UnknownTerm -> Nothing
+    FnTypeTerm x y -> Just (Zipper x (FnTypeArg y c))
+    BoolTypeTerm -> Nothing
+    Assignment x y -> Just (Zipper x (AssignmentId y c))
+    Program [] -> Nothing
+    Program (x:xs) -> Just (Zipper x (TopLevel [] xs))
+
+selectPrev' :: Zipper -> Maybe Zipper
+selectPrev' (Zipper t z) = case z of
+    TopLevel [] bs -> Nothing
+    TopLevel (a:as) bs -> Just (Zipper a (TopLevel as (t:bs)))
+    FunctionArg a b c' -> Nothing
+    FunctionArgType a b c' -> Just (Zipper a (FunctionArg t b c'))
+    FunctionBody a b c' -> Just (Zipper b (FunctionArgType a t c'))
+    ApplicationFn a c' -> Nothing
+    ApplicationArg a c' -> Just (Zipper a (ApplicationFn t c'))
+    ConditionalCond a b c' -> Nothing
+    ConditionalOptOne a b c' -> Just (Zipper a (ConditionalCond t b c'))
+    ConditionalOptTwo a b c' -> Just (Zipper b (ConditionalCond a t c'))
+    AssignmentId a c' -> Nothing
+    AssignmentVal a c' -> Just (Zipper a (AssignmentId t c'))
+    FnTypeArg a c' -> Nothing
+    FnTypeRet a c' -> Just (Zipper a (AssignmentId t c'))
+
+selectNext' :: Zipper -> Maybe Zipper
+selectNext' (Zipper t z) = case z of
+    TopLevel as [] -> Nothing
+    TopLevel as (b:bs) -> Just (Zipper b (TopLevel (t:as) bs))
+    FunctionArg a b c' -> Just (Zipper a (FunctionArgType t b c'))
+    FunctionArgType a b c' -> Just (Zipper b (FunctionArg t a c'))
+    FunctionBody a b c' -> Nothing
+    ApplicationFn a c' -> Just (Zipper a (ApplicationArg t c'))
+    ApplicationArg a c' -> Nothing
+    ConditionalCond a b c' -> Just (Zipper a (ConditionalOptOne t b c'))
+    ConditionalOptOne a b c' -> Just (Zipper b (ConditionalOptTwo a t c'))
+    ConditionalOptTwo a b c' -> Nothing
+    AssignmentId a c' -> Just (Zipper a (AssignmentVal t c'))
+    AssignmentVal a c' -> Nothing
+    FnTypeArg a c' -> Just (Zipper a (FnTypeRet t c'))
+    FnTypeRet a c' -> Nothing
+
 goup' :: Zipper -> Maybe Zipper
-goup' (ZipperNam n parent) = Just $ case parent of
-    DeclareName t ts -> ZipperDec (Declare n t) ts
-goup' (ZipperTyp t parent) = Just $ case parent of
-    DeclareType n ts -> ZipperDec (Declare n t) ts
-    FnTypeArgs a ts -> ZipperTyp (FunctionType a t) ts
-    FnTypeRet a ts -> ZipperTyp (FunctionType a t) ts
-goup' (ZipperDec d parent) = Just $ case parent of
-    FnArgs b ts -> ZipperVal (Function d b) ts
-    AssignDecl v ts -> ZipperAs (Assign d v) ts
-goup' (ZipperVal v parent) = Just $ case parent of
-    CallName a ts -> ZipperVal (Call v a) ts
-    CallArgs f ts -> ZipperVal (Call f v) ts
-    FnBody d ts -> ZipperVal (Function d v) ts
-    AssignVal d ts -> ZipperAs (Assign d v) ts
-    OpFirst op b ts -> ZipperVal (BinaryOperator v op b) ts
-    OpSecond a op ts -> ZipperVal (BinaryOperator a op v) ts
-goup' (ZipperAs _ _) = Nothing
+goup' (Zipper t z) = case z of
+    TopLevel _ _ -> Nothing
+    FunctionArg a b c' -> Just (Zipper (FunctionTerm t a b) c')
+    FunctionArgType a b c' -> Just (Zipper (FunctionTerm a t b) c')
+    FunctionBody a b c' -> Just (Zipper (FunctionTerm a b t) c')
+    ApplicationFn a c' -> Just (Zipper (ApplicationTerm t a) c')
+    ApplicationArg a c' -> Just (Zipper (ApplicationTerm a t) c')
+    ConditionalCond a b c' -> Just (Zipper (ConditionalTerm t a b) c')
+    ConditionalOptOne a b c' -> Just (Zipper (ConditionalTerm a t b) c')
+    ConditionalOptTwo a b c' -> Just (Zipper (ConditionalTerm a b t) c')
+    AssignmentId a c' -> Just (Zipper (Assignment t a) c')
+    AssignmentVal a c' -> Just (Zipper (Assignment a t) c')
+    FnTypeArg a c' -> Just (Zipper (FnTypeTerm t a) c')
+    FnTypeRet a c' -> Just (Zipper (FnTypeTerm a t) c')
 
-goToEnclosingStatement :: Zipper -> Zipper
-goToEnclosingStatement z@(ZipperAs _ (TopLevel _ _))   = z
-goToEnclosingStatement z = case goup' z of
-        Just z' -> goToEnclosingStatement z'
-        Nothing -> z
-
-goToEnclosingFunction :: Zipper -> Maybe Zipper
-goToEnclosingFunction z@(ZipperVal (Function _ _) _) = Just z
-goToEnclosingFunction z = goup' z >>= goToEnclosingFunction

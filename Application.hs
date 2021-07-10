@@ -98,10 +98,10 @@ notReadingHandler' _  = return ()
 selectingTermHandler' :: Key -> [Term] -> Int -> AppState ()
 selectingTermHandler' (KChar 'p') _ _ = changeUIState NotReading'
 selectingTermHandler' KEnter l n = do changeUIState NotReading'
-                                      changeZipper z'
+                                      applyToZipper z'
   where z' = case safeListIndex n l of
-                  Just a -> nextHole $ replaceWithTerm a z
-                  Nothing -> z
+                  Just a -> nextHole . replaceWithTerm a
+                  Nothing -> id
 selectingTermHandler' KUp l n = changeUIState (SelectingTerm' l (if n == 0 then Prelude.length l - 1 else n - 1))
 selectingTermHandler' KDown l n = changeUIState (SelectingTerm' l (if n == Prelude.length l - 1 then 0 else n + 1))
 selectingTermHandler' _ _ _ = return ()

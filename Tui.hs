@@ -37,13 +37,13 @@ appEvent' d _ = continue d
 
 drawUI' :: AppStateData -> [Widget ()]
 drawUI' (z, r, u) = (case u of
-                        SelectingTerm' l n -> [popup r (L.list () (Vec.fromList l) (Prelude.length l))]
-                        _ -> []) ++ [zipperToWidget r z]
+     SelectingTerm' l n -> [popup r (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
+     _ -> []) ++ [zipperToWidget r z]
 
 popup :: Renderer -> L.List () Term -> Widget ()
 popup renderer l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
-                              [ str " "
-                              , C.hCenter box
+                                                                    [ str " "
+                                                                    , C.hCenter box
                               , str " "
                               , C.hCenter (str "Use arrow keys to move up/down.")
                               , C.hCenter (str "Press p to exit.")

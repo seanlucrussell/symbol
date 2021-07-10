@@ -95,6 +95,18 @@ basicRenderer = Renderer { renderIdentifier = \t -> annotate White t
                          , renderAssignment = \a b -> a <+> "=" <+> b
                          , renderProgram = \a -> vsep (punctuate line a) }
 
+verboseRenderer :: Renderer 
+verboseRenderer = Renderer { renderIdentifier = \t -> annotate White t
+                         , renderFunction = \i t b -> "function of" <+> i <+> "element of" <+> t <+> ":" <+> b
+                         , renderApplication = \f x -> "call" <+> f <+> "on" <+> x
+                         , renderBooleanLiteral = \b -> annotate Red b
+                         , renderConditional = \a b c -> "if" <+> a <+> "then" <+> b <+> "else" <+> c
+                         , renderUnknown = "_____"
+                         , renderFnType = \a b -> parens (a <+> "->" <+> b)
+                         , renderBoolType = annotate Yellow "Bool"
+                         , renderAssignment = \a b -> a <+> "=" <+> b
+                         , renderProgram = \a -> vsep (punctuate line a) }
+
 
 -- prettyZip :: Renderer -> Zipper -> Doc Marking
 -- prettyZip renderer z = prettyZip' z

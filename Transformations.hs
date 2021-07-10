@@ -59,16 +59,23 @@ replaceWithTerm t z@(Zipper _ c) = let z' = Zipper t c in if validateZipper z' t
 -- possibleTypes :: Zipper -> [Type]
 -- possibleTypes z = filter (typeTypeChecks z) (allPossibleTypes z)
 
--- searchForNamedVariables :: Zipper -> [T.Text]
--- -- go up to enclosing Block or Top
--- -- for each previous item in that enclosing Block or Top, check if the thing is
--- -- an assignment
--- -- if it is an assignment, check if it is already in the list
--- -- if not, add it to the list
--- -- continue searching
--- -- NEED TO INCLUDE FUNCTION DEFINITIONS!!!
--- -- ALSO NEED TO REMOVE DUPLICATE WORDS!!!
--- -- supper inefficient and poorly written, but it works for now
+searchForNamedVariables :: Zipper -> [Term]
+-- go up to enclosing Block or Top
+-- for each previous item in that enclosing Block or Top, check if the thing is
+-- an assignment
+-- if it is an assignment, check if it is already in the list
+-- if not, add it to the list
+-- continue searching
+-- NEED TO INCLUDE FUNCTION DEFINITIONS!!!
+-- ALSO NEED TO REMOVE DUPLICATE WORDS!!!
+-- supper inefficient and poorly written, but it works for now
+searchForNamedVariables z@(Zipper _ (FunctionBody v _ _)) = v:searchForNamedVariables (goup z)
+searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _:_) _)) = v:searchForNamedVariables (selectPrev z)
+-- searchForNamedVariables z@(Zipper _ (TopLevel _ _)) = searchForNamedVariables (selectPrev z)
+searchForNamedVariables z@(Zipper _ (TopLevel [] _)) = []
+searchForNamedVariables z = searchForNamedVariables (goup z)
+
+
 -- searchForNamedVariables z = sort (nub (searchAbove ++ searchBefore ++ current ++ args))
 --   where
 --     extractNameFromDeclList (Declare (Name n) _) = [n]
@@ -111,9 +118,7 @@ standardTerms = [ BooleanLiteralTerm True
 --     _ -> []
 
 allPossibleTerms :: Zipper -> [Term]
-allPossibleTerms z = standardTerms
-                      -- ++ fmap Variable
-                      --    (searchForNamedVariables z)
+allPossibleTerms z = standardTerms ++ (searchForNamedVariables z)
                       -- ++ possibleFunctionDefinitions z
                       -- ++ validFunctionCalls z
 

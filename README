@@ -129,6 +129,17 @@ should instead return a different type of zipper. and then the ui just has a
 different set of behaviors for each different type of thingamajig. need to think
 how to clarify this a bit
 
+* Even more differenter architecture
+
+Make it so the only real datatype is a tree, e.g.
+
+data AST = Nil | AST Term [AST]
+
+Then type checking is defined on the AST. So is the zipper. And the renderer.
+Everything defined by the AST. Pulling back on all the nice type system stuff
+now can make stuff easier to implement, and then later we can put it all back
+in.
+
 * Ideal user interface
 
 So i think the ideal interface would consist of a couple of parts:

@@ -28,16 +28,16 @@ import qualified Data.Vector as Vec
 
 import qualified Control.Monad.State as S
 
-appEvent' :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
-appEvent' d (VtyEvent (EvKey e [] )) = case nextState of 
-                     (_, _, Exiting') -> halt d
+appEvent :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
+appEvent d (VtyEvent (EvKey e [] )) = case nextState of 
+                     (_, _, Exiting) -> halt d
                      _ -> continue nextState
   where nextState = S.execState (stateHandler e) d
-appEvent' d _ = continue d
+appEvent d _ = continue d
 
-drawUI' :: AppStateData -> [Widget ()]
-drawUI' (z, r, u) = (case u of
-     SelectingTerm' l n -> [popup r (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
+drawUI :: AppStateData -> [Widget ()]
+drawUI (z, r, u) = (case u of
+     SelectingTerm l n -> [popup r (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget r z]
 
 popup :: Renderer -> L.List () Term -> Widget ()
@@ -69,13 +69,13 @@ theMap = A.attrMap defAttr
     ]
 
 initialState :: AppStateData
-initialState = (z, basicRenderer, NotReading')
+initialState = (z, basicRenderer, NotReading)
 
 theApp :: App AppStateData e ()
 theApp =
-      App { appDraw = drawUI'
+      App { appDraw = drawUI
           , appChooseCursor = showFirstCursor
-          , appHandleEvent = appEvent'
+          , appHandleEvent = appEvent
           , appStartEvent = return
           , appAttrMap = const theMap
           }

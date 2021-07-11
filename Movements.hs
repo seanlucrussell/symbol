@@ -1,5 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Movements where
+module Movements
+  ( (.-)
+  , previousHole
+  , nextHole
+  , selectFirst
+  , selectNext
+  , selectPrev
+  , selectLast
+  , goup) where
 
 import SymbolData
 

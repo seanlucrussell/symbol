@@ -1,6 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SymbolData where
-
+module SymbolData
+  ( Term
+    ( IdentifierTerm
+    , FunctionTerm
+    , ApplicationTerm
+    , BooleanLiteralTerm
+    , ConditionalTerm
+    , UnknownTerm
+    , FnTypeTerm
+    , BoolTypeTerm
+    , Assignment
+    , Program)
+  , Container
+    ( TopLevel
+    , FunctionArg
+    , FunctionArgType
+    , FunctionBody
+    , ApplicationFn
+    , ApplicationArg
+    , ConditionalCond
+    , ConditionalOptOne
+    , ConditionalOptTwo
+    , AssignmentId
+    , AssignmentVal
+    , FnTypeArg
+    , FnTypeRet)
+  , Zipper (Zipper)
+  , validateZipper
+  , z) where
 import qualified Data.Text as T
 
 {-# LANGUAGE XOverloadedStrings #-}
@@ -135,4 +162,5 @@ g = fun (ident "a") (BoolTypeTerm) (cond (ident "a") f t)
 h = fun (ident "f") (FnTypeTerm BoolTypeTerm BoolTypeTerm) (ApplicationTerm (ident "f") t)
 p = Program [assign (ident "g") g, assign (ident "h") h, assign (ident "result") (app (ident "h") (ident "g"))]
 
-z = Zipper (assign (ident "h") h) (TopLevel [assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g"))])
+-- z = Zipper (assign (ident "h") h) (TopLevel [assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g"))])
+z = Zipper (assign UnknownTerm UnknownTerm) (TopLevel [] [])

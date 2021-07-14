@@ -130,7 +130,7 @@ selectPrev' (Zipper t z) = case z of
     AssignmentId a c' -> Nothing
     AssignmentVal a c' -> Just (Zipper a (AssignmentId t c'))
     FnTypeArg a c' -> Nothing
-    FnTypeRet a c' -> Just (Zipper a (AssignmentId t c'))
+    FnTypeRet a c' -> Just (Zipper a (FnTypeArg t c'))
 
 selectNext' :: Zipper -> Maybe Zipper
 selectNext' (Zipper t z) = case z of

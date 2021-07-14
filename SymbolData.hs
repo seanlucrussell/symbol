@@ -27,6 +27,7 @@ module SymbolData
     , FnTypeRet)
   , Zipper (Zipper)
   , validateZipper
+  , zipperToTerm
   , z) where
 import qualified Data.Text as T
 

@@ -19,6 +19,26 @@ import Brick.Types (Widget)
 import Brick.Widgets.Core (vBox, str, modifyDefAttr)
 import Lens.Micro
 
+-- lets do a renderer for terms that is associative
+renderAssoc :: Term -> Doc Marking
+renderAssoc (IdentifierTerm i) = annotate Cyan (pretty i)
+renderAssoc (FunctionTerm a b c) = group (hang 1 (vcat ["\\" <> renderAssoc a <> ":" <> renderAssoc b <> ".", renderAssoc c]))
+renderAssoc (ApplicationTerm a b) = parens (align (sep (fmap renderAssoc (terms a ++ [b]))))
+     where terms t = case t of
+                        (ApplicationTerm c d) -> terms c ++ [d]
+                        _ -> [t]
+renderAssoc (BooleanLiteralTerm a) = annotate Red (pretty a)
+renderAssoc (ConditionalTerm a b c) = align (sep ["if" <+> renderAssoc a, "then" <+> renderAssoc b, "else" <+> renderAssoc c])
+renderAssoc (UnknownTerm) = "_____"
+renderAssoc (FnTypeTerm a b) = parens (align (sep ([renderAssoc a] ++ (fmap ("->" <+>) (terms b)))))
+     where terms t = case t of
+                        (FnTypeTerm c d) -> [renderAssoc c] ++ terms d
+                        _ -> [renderAssoc t]
+renderAssoc (BoolTypeTerm) = annotate Yellow "Bool"
+renderAssoc (Assignment a b) = renderAssoc a <+> "=" <+> renderAssoc b
+renderAssoc (Program a) = vsep (punctuate line (fmap (renderAssoc) a))
+
+
 data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
                          , renderFunction :: Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
                          , renderApplication :: Doc Marking -> Doc Marking -> Doc Marking
@@ -31,33 +51,35 @@ data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
                          , renderProgram :: [Doc Marking] -> Doc Marking }
 
 renderZipper :: Renderer -> Zipper -> Doc Marking
-renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm r t)) c
-        where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
-              enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
-              enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c
-              enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm r x) (renderTerm r y) t) c
-              enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm r x)) c
-              enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm r x) t) c
-              enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm r x) (renderTerm r y)) c
-              enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm r x) t (renderTerm r y)) c
-              enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm r x) (renderTerm r y) t) c
-              enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm r x)) c
-              enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm r x) t) c
-              enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
-              enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
+renderZipper _ = renderAssoc . zipperToTerm
+-- renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm r t)) c
+--         where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
+--               enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
+--               enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c
+--               enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm r x) (renderTerm r y) t) c
+--               enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm r x)) c
+--               enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm r x) t) c
+--               enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm r x) (renderTerm r y)) c
+--               enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm r x) t (renderTerm r y)) c
+--               enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm r x) (renderTerm r y) t) c
+--               enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm r x)) c
+--               enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm r x) t) c
+--               enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
+--               enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
 
 
 renderTerm :: Renderer -> Term -> Doc Marking
-renderTerm r (IdentifierTerm i) = renderIdentifier r (pretty i)
-renderTerm r (FunctionTerm a b c) = renderFunction r (renderTerm r a) (renderTerm r b) (renderTerm r c)
-renderTerm r (ApplicationTerm a b) = renderApplication r (renderTerm r a) (renderTerm r b)
-renderTerm r (BooleanLiteralTerm a) = renderBooleanLiteral r (pretty a)
-renderTerm r (ConditionalTerm a b c) = renderConditional r (renderTerm r a) (renderTerm r b) (renderTerm r c)
-renderTerm r (UnknownTerm) = renderUnknown r
-renderTerm r (FnTypeTerm a b) = renderFnType r (renderTerm r a) (renderTerm r b)
-renderTerm r (BoolTypeTerm) = renderBoolType r
-renderTerm r (Assignment a b) = renderAssignment r (renderTerm r a) (renderTerm r b)
-renderTerm r (Program a) = renderProgram r (fmap (renderTerm r) a)
+renderTerm _ = renderAssoc
+-- renderTerm r (IdentifierTerm i) = renderIdentifier r (pretty i)
+-- renderTerm r (FunctionTerm a b c) = renderFunction r (renderTerm r a) (renderTerm r b) (renderTerm r c)
+-- renderTerm r (ApplicationTerm a b) = renderApplication r (renderTerm r a) (renderTerm r b)
+-- renderTerm r (BooleanLiteralTerm a) = renderBooleanLiteral r (pretty a)
+-- renderTerm r (ConditionalTerm a b c) = renderConditional r (renderTerm r a) (renderTerm r b) (renderTerm r c)
+-- renderTerm r (UnknownTerm) = renderUnknown r
+-- renderTerm r (FnTypeTerm a b) = renderFnType r (renderTerm r a) (renderTerm r b)
+-- renderTerm r (BoolTypeTerm) = renderBoolType r
+-- renderTerm r (Assignment a b) = renderAssignment r (renderTerm r a) (renderTerm r b)
+-- renderTerm r (Program a) = renderProgram r (fmap (renderTerm r) a)
 
 -- specific renderers
 

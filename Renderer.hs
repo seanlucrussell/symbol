@@ -4,8 +4,9 @@ module Renderer
   , zipperToWidget
   , renderDoc
   , renderTerm
-  , basicRenderer
-  , verboseRenderer)  where
+  , basicRenderer) where
+
+-- , verboseRenderer)  where
 
 -- how do we make parens associative?
 
@@ -18,6 +19,46 @@ import qualified Brick
 import Brick.Types (Widget)
 import Brick.Widgets.Core (vBox, str, modifyDefAttr)
 import Lens.Micro
+
+data RenderContext = AppArg | TypeRet | Other
+
+getRenderContext :: Container -> RenderContext
+getRenderContext (ApplicationFn _ _) = AppArg
+getRenderContext (FnTypeRet _ _) = TypeRet
+getRenderContext _ = Other
+
+
+renderZipper :: Renderer -> Zipper -> Doc Marking
+-- renderZipper _ = renderAssoc . zipperToTerm
+renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm' (getRenderContext c) r t)) c
+        where enclose t (TopLevel a b) = renderProgram r Other (fmap (renderTerm' Other r) (reverse a) ++ [t] ++ fmap (renderTerm' Other r) b)
+              enclose t (FunctionArg x y c) = enclose (renderFunction r (getRenderContext c) t (renderTerm' Other r x) (renderTerm' Other r y)) c
+              enclose t (FunctionArgType x y c) = enclose (renderFunction r (getRenderContext c) (renderTerm' Other r x) t (renderTerm' Other r y)) c
+              enclose t (FunctionBody x y c) = enclose (renderFunction r (getRenderContext c) (renderTerm' Other r x) (renderTerm' Other r y) t) c
+              enclose t (ApplicationFn x c) = enclose (renderApplication r (getRenderContext c) t (renderTerm' Other r x)) c
+              enclose t (ApplicationArg x c) = enclose (renderApplication r (getRenderContext c) (renderTerm' AppArg r x) t) c
+              enclose t (ConditionalCond x y c) = enclose (renderConditional r (getRenderContext c) t (renderTerm' Other r x) (renderTerm' Other r y)) c
+              enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (getRenderContext c) (renderTerm' Other r x) t (renderTerm' Other r y)) c
+              enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (getRenderContext c) (renderTerm' Other r x) (renderTerm' Other r y) t) c
+              enclose t (AssignmentId x c) = enclose (renderAssignment r (getRenderContext c) t (renderTerm' Other r x)) c
+              enclose t (AssignmentVal x c) = enclose (renderAssignment r (getRenderContext c) (renderTerm' Other r x) t) c
+              enclose t (FnTypeArg x c) = enclose (renderFnType r (getRenderContext c) t (renderTerm' TypeRet r x)) c
+              enclose t (FnTypeRet x c) = enclose (renderFnType r (getRenderContext c) (renderTerm' Other r x) t) c
+
+-- renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm r t)) c
+--         where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
+--               enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
+--               enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c
+--               enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm r x) (renderTerm r y) t) c
+--               enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm r x)) c
+--               enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm r x) t) c
+--               enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm r x) (renderTerm r y)) c
+--               enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm r x) t (renderTerm r y)) c
+--               enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm r x) (renderTerm r y) t) c
+--               enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm r x)) c
+--               enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm r x) t) c
+--               enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
+--               enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
 
 -- lets do a renderer for terms that is associative
 renderAssoc :: Term -> Doc Marking
@@ -39,37 +80,34 @@ renderAssoc (Assignment a b) = renderAssoc a <+> "=" <+> renderAssoc b
 renderAssoc (Program a) = vsep (punctuate line (fmap (renderAssoc) a))
 
 
-data Renderer = Renderer { renderIdentifier :: Doc Marking -> Doc Marking
-                         , renderFunction :: Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
-                         , renderApplication :: Doc Marking -> Doc Marking -> Doc Marking
-                         , renderBooleanLiteral :: Doc Marking -> Doc Marking
-                         , renderConditional :: Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
-                         , renderUnknown :: Doc Marking
-                         , renderFnType :: Doc Marking -> Doc Marking -> Doc Marking
-                         , renderBoolType :: Doc Marking
-                         , renderAssignment :: Doc Marking -> Doc Marking -> Doc Marking
-                         , renderProgram :: [Doc Marking] -> Doc Marking }
+data Renderer = Renderer { renderIdentifier :: RenderContext -> Doc Marking -> Doc Marking
+                         , renderFunction :: RenderContext -> Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
+                         , renderApplication :: RenderContext -> Doc Marking -> Doc Marking -> Doc Marking
+                         , renderBooleanLiteral :: RenderContext -> Doc Marking -> Doc Marking
+                         , renderConditional :: RenderContext -> Doc Marking -> Doc Marking -> Doc Marking -> Doc Marking
+                         , renderUnknown :: RenderContext -> Doc Marking
+                         , renderFnType :: RenderContext -> Doc Marking -> Doc Marking -> Doc Marking
+                         , renderBoolType :: RenderContext -> Doc Marking
+                         , renderAssignment :: RenderContext -> Doc Marking -> Doc Marking -> Doc Marking
+                         , renderProgram :: RenderContext -> [Doc Marking] -> Doc Marking }
 
-renderZipper :: Renderer -> Zipper -> Doc Marking
-renderZipper _ = renderAssoc . zipperToTerm
--- renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm r t)) c
---         where enclose t (TopLevel a b) = renderProgram r (fmap (renderTerm r) (reverse a) ++ [t] ++ fmap (renderTerm r) b)
---               enclose t (FunctionArg x y c) = enclose (renderFunction r t (renderTerm r x) (renderTerm r y)) c
---               enclose t (FunctionArgType x y c) = enclose (renderFunction r (renderTerm r x) t (renderTerm r y)) c
---               enclose t (FunctionBody x y c) = enclose (renderFunction r (renderTerm r x) (renderTerm r y) t) c
---               enclose t (ApplicationFn x c) = enclose (renderApplication r t (renderTerm r x)) c
---               enclose t (ApplicationArg x c) = enclose (renderApplication r (renderTerm r x) t) c
---               enclose t (ConditionalCond x y c) = enclose (renderConditional r t (renderTerm r x) (renderTerm r y)) c
---               enclose t (ConditionalOptOne x y c) = enclose (renderConditional r (renderTerm r x) t (renderTerm r y)) c
---               enclose t (ConditionalOptTwo x y c) = enclose (renderConditional r (renderTerm r x) (renderTerm r y) t) c
---               enclose t (AssignmentId x c) = enclose (renderAssignment r t (renderTerm r x)) c
---               enclose t (AssignmentVal x c) = enclose (renderAssignment r (renderTerm r x) t) c
---               enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
---               enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
+renderTerm' :: RenderContext -> Renderer -> Term -> Doc Marking
+-- renderTerm _ = renderAssoc
+renderTerm' context r (IdentifierTerm i) = renderIdentifier r context (pretty i)
+renderTerm' context r (FunctionTerm a b c) = renderFunction r context (renderTerm' Other r a) (renderTerm' Other r b) (renderTerm' Other r c)
+renderTerm' context r (ApplicationTerm a b) = renderApplication r context (renderTerm' AppArg r a) (renderTerm' Other r b)
+renderTerm' context r (BooleanLiteralTerm a) = renderBooleanLiteral r context (pretty a)
+renderTerm' context r (ConditionalTerm a b c) = renderConditional r context (renderTerm' Other r a) (renderTerm' Other r b) (renderTerm' Other r c)
+renderTerm' context r (UnknownTerm) = renderUnknown r context
+renderTerm' context r (FnTypeTerm a b) = renderFnType r context (renderTerm' Other r a) (renderTerm' TypeRet r b)
+renderTerm' context r (BoolTypeTerm) = renderBoolType r context
+renderTerm' context r (Assignment a b) = renderAssignment r context (renderTerm' Other r a) (renderTerm' Other r b)
+renderTerm' context r (Program a) = renderProgram r context (fmap (renderTerm' Other r) a)
 
 
 renderTerm :: Renderer -> Term -> Doc Marking
-renderTerm _ = renderAssoc
+renderTerm = renderTerm' Other
+-- renderTerm _ = renderAssoc
 -- renderTerm r (IdentifierTerm i) = renderIdentifier r (pretty i)
 -- renderTerm r (FunctionTerm a b c) = renderFunction r (renderTerm r a) (renderTerm r b) (renderTerm r c)
 -- renderTerm r (ApplicationTerm a b) = renderApplication r (renderTerm r a) (renderTerm r b)
@@ -95,28 +133,47 @@ renderTerm _ = renderAssoc
 -- for more
 
 basicRenderer :: Renderer 
-basicRenderer = Renderer { renderIdentifier = \t -> annotate Cyan t
-                         , renderFunction = \i t b -> group (hang 1 (vcat ["\\" <> i <> ":" <> t <> ".", b]))
-                         , renderApplication = \f x -> parens (align (sep [f, x]))
-                         , renderBooleanLiteral = \b -> annotate Red b
-                         , renderConditional = \a b c -> align (sep ["if" <+> a, "then" <+> b, "else" <+> c])
-                         , renderUnknown = "_____"
-                         , renderFnType = \a b -> parens (a <+> "->" <+> b)
-                         , renderBoolType = annotate Yellow "Bool"
-                         , renderAssignment = \a b -> a <+> "=" <+> b
-                         , renderProgram = \a -> vsep (punctuate line a) }
+basicRenderer = Renderer { renderIdentifier = \context t -> annotate Cyan t
+                         , renderFunction = \context i t b -> group (hang 1 (vcat ["\\" <> i <> ":" <> t <> ".", b]))
+                         , renderApplication = \context f x -> case context of
+                                AppArg -> align (sep [f, x])
+                                _ -> parens (align (sep [f, x]))
+                         , renderBooleanLiteral = \context b -> annotate Red b
+                         , renderConditional = \context a b c -> align (sep ["if" <+> a, "then" <+> b, "else" <+> c])
+                         , renderUnknown = \context -> "_____"
+                         , renderFnType = \context a b -> case context of 
+                                TypeRet -> a <+> "->" <+> b
+                                _ -> parens (a <+> "->" <+> b)
+                         , renderBoolType = \context -> annotate Yellow "Bool"
+                         , renderAssignment = \context a b -> a <+> "=" <+> b
+                         , renderProgram = \context a -> vsep (punctuate line a) }
 
-verboseRenderer :: Renderer 
-verboseRenderer = Renderer { renderIdentifier = \t -> annotate White t
-                         , renderFunction = \i t b -> "function of" <+> i <+> "element of" <+> t <+> ":" <+> b
-                         , renderApplication = \f x -> "call" <+> f <+> "on" <+> x
-                         , renderBooleanLiteral = \b -> annotate Red b
-                         , renderConditional = \a b c -> "if" <+> a <+> "then" <+> b <+> "else" <+> c
-                         , renderUnknown = "_____"
-                         , renderFnType = \a b -> parens (a <+> "->" <+> b)
-                         , renderBoolType = annotate Yellow "Bool"
-                         , renderAssignment = \a b -> a <+> "=" <+> b
-                         , renderProgram = \a -> vsep (punctuate line a) }
+-- renderWContext context (FunctionTerm a b c) = group (hang 1 (vcat ["\\" <> renderWContext Other a <> ":" <> renderWContext Other b <> ".", renderWContext Other c]))
+-- renderWContext context (ApplicationTerm a b) = case context of
+--         AppArg -> renderWContext AppArg a <+> renderWContext Other b
+--         _ -> parens (renderWContext AppArg a <+> renderWContext Other b)
+-- renderWContext context (BooleanLiteralTerm a) = annotate Red (pretty a)
+-- renderWContext context (ConditionalTerm a b c) = align (sep ["if" <+> renderWContext Other a, "then" <+> renderWContext Other b, "else" <+> renderWContext Other c])
+-- renderWContext context (UnknownTerm) = "_____"
+-- renderWContext context (FnTypeTerm a b) = case context of
+--         TypeRet -> renderWContext Other a <+> renderWContext TypeRet b
+--         _ -> parens (renderWContext Other a <+> renderWContext TypeRet b)
+-- renderWContext context (BoolTypeTerm) = annotate Yellow "Bool"
+-- renderWContext context (Assignment a b) = renderWContext Other a <+> "=" <+> renderWContext Other b
+-- renderWContext context (Program a) = vsep (punctuate line (fmap (renderWContext Other) a))
+
+
+-- verboseRenderer :: Renderer 
+-- verboseRenderer = Renderer { renderIdentifier = \t -> annotate White t
+--                          , renderFunction = \i t b -> "function of" <+> i <+> "element of" <+> t <+> ":" <+> b
+--                          , renderApplication = \f x -> "call" <+> f <+> "on" <+> x
+--                          , renderBooleanLiteral = \b -> annotate Red b
+--                          , renderConditional = \a b c -> "if" <+> a <+> "then" <+> b <+> "else" <+> c
+--                          , renderUnknown = "_____"
+--                          , renderFnType = \a b -> parens (a <+> "->" <+> b)
+--                          , renderBoolType = annotate Yellow "Bool"
+--                          , renderAssignment = \a b -> a <+> "=" <+> b
+--                          , renderProgram = \a -> vsep (punctuate line a) }
 
 data StackInstructions = StackLiteral String
                        | Push Marking

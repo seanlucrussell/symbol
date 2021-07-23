@@ -22,6 +22,7 @@ module SymbolData
     , ConditionalOptOne
     , ConditionalOptTwo
     , AssignmentId
+    , AssignmentType
     , AssignmentVal
     , FnTypeArg
     , FnTypeRet)
@@ -41,7 +42,7 @@ data Term = IdentifierTerm T.Text
           | UnknownTerm
           | FnTypeTerm Term Term
           | BoolTypeTerm
-          | Assignment Term Term
+          | Assignment Term Term Term
           | Program [Term]
           deriving (Eq,Show)
 
@@ -53,11 +54,15 @@ data Type = BooleanType
 -- checks that a whole program is specified correctly
 validateProgram :: Term -> Bool
 validateProgram (Program t) = validateProgram' baseContext t
-        where validateProgram' c (Assignment (IdentifierTerm a) b:ts) = case typeOf c b of
-                Just t -> validateProgram' (updateContext c a t) ts
+        where validateProgram' c (Assignment (IdentifierTerm a) t' b:ts) = case typeOf c b of
+                Just t -> case termToType t' of
+                        Just t'' -> if typeEquality t t'' then validateProgram' (updateContext c a t) ts else False
+                        Nothing -> False
                 Nothing -> False
-              validateProgram' c (Assignment UnknownTerm b:ts) = case typeOf c b of
-                Just t -> validateProgram' c ts
+              validateProgram' c (Assignment UnknownTerm t' b:ts) = case typeOf c b of
+                Just t -> case termToType t' of
+                        Just t'' -> if typeEquality t t'' then validateProgram' c ts else False
+                        Nothing -> False
                 Nothing -> False
               validateProgram' _ [] = True
               validateProgram' _ _ = False
@@ -121,8 +126,9 @@ data Container = TopLevel [Term] [Term]
                | ConditionalCond Term Term Container
                | ConditionalOptOne Term Term Container
                | ConditionalOptTwo Term Term Container
-               | AssignmentId Term Container
-               | AssignmentVal Term Container
+               | AssignmentId Term Term Container
+               | AssignmentType Term Term Container
+               | AssignmentVal Term Term Container
                | FnTypeArg Term Container
                | FnTypeRet Term Container
                deriving (Eq,Show)
@@ -139,8 +145,9 @@ goUp t (ApplicationArg a c) = (ApplicationTerm a t, Just c)
 goUp t (ConditionalCond a b c) = (ConditionalTerm t a b, Just c)
 goUp t (ConditionalOptOne a b c) = (ConditionalTerm a t b, Just c)
 goUp t (ConditionalOptTwo a b c) = (ConditionalTerm a b t, Just c)
-goUp t (AssignmentId a c) = (Assignment t a, Just c)
-goUp t (AssignmentVal a c) = (Assignment a t, Just c)
+goUp t (AssignmentId a b c) = (Assignment t a b, Just c)
+goUp t (AssignmentType a b c) = (Assignment a t b, Just c)
+goUp t (AssignmentVal a b c) = (Assignment a b t, Just c)
 goUp t (FnTypeArg a c) = (FnTypeTerm t a, Just c)
 goUp t (FnTypeRet a c) = (FnTypeTerm a t, Just c)
 
@@ -152,16 +159,16 @@ zipperToTerm (Zipper t c) = goToTop t (Just c)
 validateZipper :: Zipper -> Bool
 validateZipper = validateProgram . zipperToTerm
 
-t = BooleanLiteralTerm True
-f = BooleanLiteralTerm False
-cond = ConditionalTerm
-app = ApplicationTerm
-fun = FunctionTerm
+-- t = BooleanLiteralTerm True
+-- f = BooleanLiteralTerm False
+-- cond = ConditionalTerm
+-- app = ApplicationTerm
+-- fun = FunctionTerm
 assign = Assignment
-ident = IdentifierTerm
-g = fun (ident "a") (BoolTypeTerm) (cond (ident "a") f t)
-h = fun (ident "f") (FnTypeTerm BoolTypeTerm BoolTypeTerm) (ApplicationTerm (ident "f") t)
-p = Program [assign (ident "g") g, assign (ident "h") h, assign (ident "result") (app (ident "h") (ident "g"))]
+-- ident = IdentifierTerm
+-- g = fun (ident "a") (BoolTypeTerm) (cond (ident "a") f t)
+-- h = fun (ident "f") (FnTypeTerm BoolTypeTerm BoolTypeTerm) (ApplicationTerm (ident "f") t)
+-- p = Program [assign (ident "g") g, assign (ident "h") h, assign (ident "result") (app (ident "h") (ident "g"))]
 
 -- z = Zipper (assign (ident "h") h) (TopLevel [assign (ident "g") g] [assign (ident "result") (app (ident "h") (ident "g"))])
-z = Zipper (assign UnknownTerm UnknownTerm) (TopLevel [] [])
+z = Zipper (assign UnknownTerm UnknownTerm UnknownTerm) (TopLevel [] [])

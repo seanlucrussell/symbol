@@ -111,7 +111,7 @@ selectFirst' (Zipper t c) = case t of
     UnknownTerm -> Nothing
     FnTypeTerm x y -> Just (Zipper x (FnTypeArg y c))
     BoolTypeTerm -> Nothing
-    Assignment x y -> Just (Zipper x (AssignmentId y c))
+    Assignment x y z -> Just (Zipper x (AssignmentId y z c))
     Program [] -> Nothing
     Program (x:xs) -> Just (Zipper x (TopLevel [] xs))
 
@@ -127,8 +127,9 @@ selectPrev' (Zipper t z) = case z of
     ConditionalCond a b c' -> Nothing
     ConditionalOptOne a b c' -> Just (Zipper a (ConditionalCond t b c'))
     ConditionalOptTwo a b c' -> Just (Zipper b (ConditionalCond a t c'))
-    AssignmentId a c' -> Nothing
-    AssignmentVal a c' -> Just (Zipper a (AssignmentId t c'))
+    AssignmentId a b c' -> Nothing
+    AssignmentType a b c' -> Just (Zipper a (AssignmentId t b c'))
+    AssignmentVal a b c' -> Just (Zipper b (AssignmentType a t c'))
     FnTypeArg a c' -> Nothing
     FnTypeRet a c' -> Just (Zipper a (FnTypeArg t c'))
 
@@ -144,8 +145,9 @@ selectNext' (Zipper t z) = case z of
     ConditionalCond a b c' -> Just (Zipper a (ConditionalOptOne t b c'))
     ConditionalOptOne a b c' -> Just (Zipper b (ConditionalOptTwo a t c'))
     ConditionalOptTwo a b c' -> Nothing
-    AssignmentId a c' -> Just (Zipper a (AssignmentVal t c'))
-    AssignmentVal a c' -> Nothing
+    AssignmentId a b c' -> Just (Zipper a (AssignmentType t b c'))
+    AssignmentType a b c' -> Just (Zipper b (AssignmentVal a t c'))
+    AssignmentVal a b c' -> Nothing
     FnTypeArg a c' -> Just (Zipper a (FnTypeRet t c'))
     FnTypeRet a c' -> Nothing
 
@@ -160,8 +162,9 @@ goup' (Zipper t z) = case z of
     ConditionalCond a b c' -> Just (Zipper (ConditionalTerm t a b) c')
     ConditionalOptOne a b c' -> Just (Zipper (ConditionalTerm a t b) c')
     ConditionalOptTwo a b c' -> Just (Zipper (ConditionalTerm a b t) c')
-    AssignmentId a c' -> Just (Zipper (Assignment t a) c')
-    AssignmentVal a c' -> Just (Zipper (Assignment a t) c')
+    AssignmentId a b c' -> Just (Zipper (Assignment t a b) c')
+    AssignmentType a b c' -> Just (Zipper (Assignment a t b) c')
+    AssignmentVal a b c' -> Just (Zipper (Assignment a b t) c')
     FnTypeArg a c' -> Just (Zipper (FnTypeTerm t a) c')
     FnTypeRet a c' -> Just (Zipper (FnTypeTerm a t) c')
 

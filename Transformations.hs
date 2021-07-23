@@ -17,11 +17,11 @@ import Control.Applicative
 {-# LANGUAGE XOverloadedStrings #-}
 
 insertBefore :: Zipper -> Zipper
-insertBefore (Zipper s (TopLevel a b)) = Zipper s (TopLevel (Assignment UnknownTerm  UnknownTerm:a) b) .- selectPrev
+insertBefore (Zipper s (TopLevel a b)) = Zipper s (TopLevel (Assignment UnknownTerm UnknownTerm UnknownTerm:a) b) .- selectPrev
 insertBefore z = z .- goup .- insertBefore
 
 insertAfter :: Zipper -> Zipper
-insertAfter (Zipper s (TopLevel a b)) = Zipper s (TopLevel a (Assignment UnknownTerm UnknownTerm:b)) .- selectNext
+insertAfter (Zipper s (TopLevel a b)) = Zipper s (TopLevel a (Assignment UnknownTerm UnknownTerm UnknownTerm:b)) .- selectNext
 insertAfter z = z .- goup .- insertAfter
 
 replaceWithTerm :: Term -> Zipper -> Zipper
@@ -29,7 +29,7 @@ replaceWithTerm t z@(Zipper _ c) = let z' = Zipper t c in if validateZipper z' t
 
 searchForNamedVariables :: Zipper -> [Term]
 searchForNamedVariables z@(Zipper _ (FunctionBody v _ _)) = v:searchForNamedVariables (goup z)
-searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _:_) _)) = v:searchForNamedVariables (selectPrev z)
+searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _ _:_) _)) = v:searchForNamedVariables (selectPrev z)
 searchForNamedVariables z@(Zipper _ (TopLevel [] _)) = []
 searchForNamedVariables z = searchForNamedVariables (goup z)
 
@@ -51,10 +51,10 @@ standardTerms = [ BooleanLiteralTerm True
                 , UnknownTerm
                 , FnTypeTerm UnknownTerm UnknownTerm
                 , BoolTypeTerm
-                , Assignment UnknownTerm UnknownTerm ]
+                , Assignment UnknownTerm UnknownTerm UnknownTerm ]
 
 allPossibleTerms :: Zipper -> [Term]
-allPossibleTerms z = standardTerms ++ (searchForNamedVariables z) ++ (functionCalls z)
+allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
 
 termTypeChecks :: Zipper -> Term -> Bool
 termTypeChecks (Zipper _ c) t = validateZipper (Zipper t c)

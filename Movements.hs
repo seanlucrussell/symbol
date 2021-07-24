@@ -7,6 +7,7 @@ module Movements
   , selectNext
   , selectPrev
   , selectLast
+  , nextHole'
   , goup) where
 
 import SymbolData
@@ -126,7 +127,7 @@ selectPrev' (Zipper t z) = case z of
     ApplicationArg a c' -> Just (Zipper a (ApplicationFn t c'))
     ConditionalCond a b c' -> Nothing
     ConditionalOptOne a b c' -> Just (Zipper a (ConditionalCond t b c'))
-    ConditionalOptTwo a b c' -> Just (Zipper b (ConditionalCond a t c'))
+    ConditionalOptTwo a b c' -> Just (Zipper b (ConditionalOptOne a t c'))
     AssignmentId a b c' -> Nothing
     AssignmentType a b c' -> Just (Zipper a (AssignmentId t b c'))
     AssignmentVal a b c' -> Just (Zipper b (AssignmentType a t c'))

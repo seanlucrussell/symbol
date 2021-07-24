@@ -91,7 +91,10 @@ notReadingHandler (KChar 'r') = do
                                              changeUIState (AddingName " ")
          _ -> return ()
 notReadingHandler (KChar 'p') = do z <- getZipper
-                                   changeUIState (SelectingTerm (possibleTerms z) 0)
+                                   case z of
+                                        Zipper _ (FunctionArg _ _ _) -> return ()
+                                        Zipper _ (AssignmentId _ _ _) -> return ()
+                                        _ -> changeUIState (SelectingTerm (possibleTerms z) 0)
 notReadingHandler (KChar 'n') = applyToZipper nextHole
 notReadingHandler (KChar 'N') = applyToZipper previousHole
 notReadingHandler (KChar 'O') = applyToZipper insertBefore
@@ -100,13 +103,13 @@ notReadingHandler (KChar 'j') = applyToZipper selectFirst
 notReadingHandler (KChar 'l') = applyToZipper selectNext
 notReadingHandler (KChar 'h') = applyToZipper selectPrev
 notReadingHandler (KChar 'k') = applyToZipper goup
-notReadingHandler (KChar '\\') = applyToZipper (replaceWithTerm (FunctionTerm UnknownTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar '>') = applyToZipper (replaceWithTerm (FnTypeTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar 'b') = applyToZipper (replaceWithTerm BoolTypeTerm)
-notReadingHandler (KChar 't') = applyToZipper (replaceWithTerm (BooleanLiteralTerm True))
-notReadingHandler (KChar 'f') = applyToZipper (replaceWithTerm (BooleanLiteralTerm False))
-notReadingHandler (KChar 'i') = applyToZipper (replaceWithTerm (ConditionalTerm UnknownTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar '?') = applyToZipper (replaceWithTerm UnknownTerm)
+notReadingHandler (KChar '\\') = applyToZipper (replaceWithTermAndSelectNext (FunctionTerm UnknownTerm UnknownTerm UnknownTerm))
+notReadingHandler (KChar '>') = applyToZipper (replaceWithTermAndSelectNext (FnTypeTerm UnknownTerm UnknownTerm))
+notReadingHandler (KChar 'b') = applyToZipper (replaceWithTermAndSelectNext BoolTypeTerm)
+notReadingHandler (KChar 't') = applyToZipper (replaceWithTermAndSelectNext (BooleanLiteralTerm True))
+notReadingHandler (KChar 'f') = applyToZipper (replaceWithTermAndSelectNext (BooleanLiteralTerm False))
+notReadingHandler (KChar 'i') = applyToZipper (replaceWithTermAndSelectNext (ConditionalTerm UnknownTerm UnknownTerm UnknownTerm))
+notReadingHandler (KChar '?') = applyToZipper (replaceWithTermAndSelectNext UnknownTerm)
 notReadingHandler KEsc = changeUIState Exiting
 notReadingHandler _  = return ()
 
@@ -117,6 +120,8 @@ selectingTermHandler KEnter l n = do changeUIState NotReading
   where z' = case safeListIndex n l of
                   Just a -> nextHole . replaceWithTerm a
                   Nothing -> id
+selectingTermHandler (KChar 'k') l n = changeUIState (SelectingTerm l (if n == 0 then Prelude.length l - 1 else n - 1))
+selectingTermHandler (KChar 'j') l n = changeUIState (SelectingTerm l (if n == Prelude.length l - 1 then 0 else n + 1))
 selectingTermHandler KUp l n = changeUIState (SelectingTerm l (if n == 0 then Prelude.length l - 1 else n - 1))
 selectingTermHandler KDown l n = changeUIState (SelectingTerm l (if n == Prelude.length l - 1 then 0 else n + 1))
 selectingTermHandler _ _ _ = return ()

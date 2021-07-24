@@ -10,7 +10,11 @@ module SymbolData
     , FnTypeTerm
     , BoolTypeTerm
     , Assignment
-    , Program)
+    , Program
+    , TypeAbstractionTerm
+    , TypeApplicationTerm
+    , UniversalTypeTerm
+    , TypeVariableTerm)
   , Container
     ( TopLevel
     , FunctionArg
@@ -36,9 +40,13 @@ import qualified Data.Text as T
 data Term = IdentifierTerm T.Text
           | FunctionTerm Term Term Term
           | ApplicationTerm Term Term
+          | TypeAbstractionTerm Term Term
+          | TypeApplicationTerm Term Term
           | BooleanLiteralTerm Bool
           | ConditionalTerm Term Term Term
           | UnknownTerm
+          | UniversalTypeTerm Term Term
+          | TypeVariableTerm T.Text
           | FnTypeTerm Term Term
           | BoolTypeTerm
           | Assignment Term Term Term

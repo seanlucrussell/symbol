@@ -87,6 +87,11 @@ renderTerm' context r (BoolTypeTerm) = renderBoolType r context
 renderTerm' context r (Assignment a b c) = renderAssignment r context (renderTerm' Other r a) (renderTerm' Other r b) (renderTerm' Other r c)
 renderTerm' context r (Program a) = renderProgram r context (fmap (renderTerm' Other r) a)
 
+renderTerm' context r (TypeAbstractionTerm a b) = renderTypeAbstraction r context (renderTerm' Other r a) (renderTerm' Other r b)
+renderTerm' context r (TypeApplicationTerm a b) = renderTypeApplication r context (renderTerm' Other r a) (renderTerm' Other r b)
+renderTerm' context r (UniversalTypeTerm a b) = renderUniversalType r context (renderTerm' Other r a) (renderTerm' Other r b)
+renderTerm' context r (TypeVariableTerm a) = renderTypeVariable r context (renderTerm' Other r a)
+
 
 renderTerm :: Renderer -> Term -> Doc Marking
 renderTerm = renderTerm' Other

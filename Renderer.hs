@@ -61,24 +61,6 @@ renderZipper r (Zipper t c) = enclose (annotate Highlight (renderTerm' (getRende
 --               enclose t (FnTypeArg x c) = enclose (renderFnType r t (renderTerm r x)) c
 --               enclose t (FnTypeRet x c) = enclose (renderFnType r (renderTerm r x) t) c
 
--- lets do a renderer for terms that is associative
--- renderAssoc :: Term -> Doc Marking
--- renderAssoc (IdentifierTerm i) = annotate Cyan (pretty i)
--- renderAssoc (FunctionTerm a b c) = group (hang 1 (vcat ["\\" <> renderAssoc a <> ":" <> renderAssoc b <> ".", renderAssoc c]))
--- renderAssoc (ApplicationTerm a b) = parens (align (sep (fmap renderAssoc (terms a ++ [b]))))
---      where terms t = case t of
---                         (ApplicationTerm c d) -> terms c ++ [d]
---                         _ -> [t]
--- renderAssoc (BooleanLiteralTerm a) = annotate Red (pretty a)
--- renderAssoc (ConditionalTerm a b c) = align (sep ["if" <+> renderAssoc a, "then" <+> renderAssoc b, "else" <+> renderAssoc c])
--- renderAssoc (UnknownTerm) = "_____"
--- renderAssoc (FnTypeTerm a b) = parens (align (sep ([renderAssoc a] ++ (fmap ("->" <+>) (terms b)))))
---      where terms t = case t of
---                         (FnTypeTerm c d) -> [renderAssoc c] ++ terms d
---                         _ -> [renderAssoc t]
--- renderAssoc (BoolTypeTerm) = annotate Yellow "Bool"
--- renderAssoc (Assignment a b) = renderAssoc a <+> "=" <+> renderAssoc b
--- renderAssoc (Program a) = vsep (punctuate line (fmap (renderAssoc) a))
 
 
 data Renderer = Renderer { renderIdentifier :: RenderContext -> Doc Marking -> Doc Marking
@@ -135,7 +117,7 @@ renderTerm = renderTerm' Other
 
 basicRenderer :: Renderer 
 basicRenderer = Renderer { renderIdentifier = \context t -> annotate Cyan t
-                         , renderFunction = \context i t b -> group (hang 1 (vcat ["\\" <> i <> ":" <> t <> ".", b]))
+                         , renderFunction = \context i t b -> group (hang 1 (vcat ["λ" <> i <> ":" <> t <> ".", b]))
                          , renderApplication = \context f x -> case context of
                                 AppArg -> align (sep [f, x])
                                 _ -> parens (align (sep [f, x]))
@@ -143,11 +125,30 @@ basicRenderer = Renderer { renderIdentifier = \context t -> annotate Cyan t
                          , renderConditional = \context a b c -> align (sep ["if" <+> a, "then" <+> b, "else" <+> c])
                          , renderUnknown = \context -> "_____"
                          , renderFnType = \context a b -> case context of 
-                                TypeRet -> a <+> "->" <+> b
-                                _ -> parens (a <+> "->" <+> b)
+                                TypeRet -> align (sep [a, "->", b])
+                                _ -> parens (align (sep [a, "->", b]))
                          , renderBoolType = \context -> annotate Yellow "Bool"
                          , renderAssignment = \context a b c -> a <+> ":" <+> b <> line <> a <+> "=" <+> c
                          , renderProgram = \context a -> vsep (punctuate line a) }
+
+-- lets do a renderer for terms that is associative
+-- renderAssoc :: Term -> Doc Marking
+-- renderAssoc (IdentifierTerm i) = annotate Cyan (pretty i)
+-- renderAssoc (FunctionTerm a b c) = group (hang 1 (vcat ["\\" <> renderAssoc a <> ":" <> renderAssoc b <> ".", renderAssoc c]))
+-- renderAssoc (ApplicationTerm a b) = parens (align (sep (fmap renderAssoc (terms a ++ [b]))))
+--      where terms t = case t of
+--                         (ApplicationTerm c d) -> terms c ++ [d]
+--                         _ -> [t]
+-- renderAssoc (BooleanLiteralTerm a) = annotate Red (pretty a)
+-- renderAssoc (ConditionalTerm a b c) = align (sep ["if" <+> renderAssoc a, "then" <+> renderAssoc b, "else" <+> renderAssoc c])
+-- renderAssoc (UnknownTerm) = "_____"
+-- renderAssoc (FnTypeTerm a b) = parens (align (sep ([renderAssoc a] ++ (fmap ("->" <+>) (terms b)))))
+--      where terms t = case t of
+--                         (FnTypeTerm c d) -> [renderAssoc c] ++ terms d
+--                         _ -> [renderAssoc t]
+-- renderAssoc (BoolTypeTerm) = annotate Yellow "Bool"
+-- renderAssoc (Assignment a b) = renderAssoc a <+> "=" <+> renderAssoc b
+-- renderAssoc (Program a) = vsep (punctuate line (fmap (renderAssoc) a))
 
 -- renderWContext context (FunctionTerm a b c) = group (hang 1 (vcat ["\\" <> renderWContext Other a <> ":" <> renderWContext Other b <> ".", renderWContext Other c]))
 -- renderWContext context (ApplicationTerm a b) = case context of

@@ -8,6 +8,7 @@ module Transformations
 
 import SymbolData
 import Movements
+import TypeChecker
 
 import qualified Data.Text as T
 
@@ -65,12 +66,11 @@ standardTerms :: [Term]
 standardTerms = [ BooleanLiteralTerm True
                 , BooleanLiteralTerm False
                 , FunctionTerm UnknownTerm UnknownTerm UnknownTerm
-                , ApplicationTerm UnknownTerm UnknownTerm
                 , ConditionalTerm UnknownTerm UnknownTerm UnknownTerm
-                , UnknownTerm
                 , FnTypeTerm UnknownTerm UnknownTerm
                 , BoolTypeTerm
-                , Assignment UnknownTerm UnknownTerm UnknownTerm ]
+                , Assignment UnknownTerm UnknownTerm UnknownTerm
+                , UnknownTerm ]
 
 allPossibleTerms :: Zipper -> [Term]
 allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms

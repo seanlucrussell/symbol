@@ -72,17 +72,22 @@ addingNameHandler KBS s = case s of
                          applyToZipper (replaceWithTerm (Term (IdentifierTerm (pack (Prelude.init s'))) []))
 addingNameHandler _ _ = return ()
 
+overIdentifier :: Zipper -> Bool
+overIdentifier z@(Zipper _ p) = case termUnderCursor (goup z) of
+        Term FunctionTerm _ -> Prelude.last p == 0
+        Term AssignmentTerm _ -> Prelude.last p == 0
+        _ -> False
+
 notReadingHandler :: Key -> AppState ()
-notReadingHandler (KChar 'r') = do
-    (z, r, u) <- get
-    case termUnderCursor z of 
-         Term (IdentifierTerm _) _ -> do applyToZipper (replaceWithTerm (Term (IdentifierTerm " ") []))
-                                         changeUIState (AddingName " ")
-         _ -> return ()
+notReadingHandler (KChar 'r') = do z <- getZipper
+                                   if overIdentifier z
+                                   then do applyToZipper (replaceWithTerm (Term (IdentifierTerm " ") []))
+                                           changeUIState (AddingName " ")
+                                   else return ()
 notReadingHandler (KChar 'p') = do z <- getZipper
-                                   case termUnderCursor z of
-                                        Term (IdentifierTerm _) _ -> return ()
-                                        _ -> changeUIState (SelectingTerm (possibleTerms z) 0)
+                                   if overIdentifier z
+                                   then return ()
+                                   else changeUIState (SelectingTerm (possibleTerms z) 0)
 notReadingHandler (KChar 'n') = applyToZipper nextHole
 notReadingHandler (KChar 'N') = applyToZipper previousHole
 notReadingHandler (KChar 'O') = applyToZipper insertBefore

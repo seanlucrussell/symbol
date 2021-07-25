@@ -7,7 +7,13 @@ module Movements
   , selectNext
   , selectPrev
   , selectLast
+  , previousHole'
   , nextHole'
+  , selectFirst'
+  , selectNext'
+  , selectPrev'
+  , selectLast'
+  , gototop
   , goup) where
 
 import SymbolData
@@ -59,6 +65,9 @@ selectLast = try selectLast'
 
 goup :: Zipper -> Zipper
 goup = try goup'
+
+gototop :: Zipper -> Zipper
+gototop = try (untilFailure goup')
 
 selectLast' :: Zipper -> Maybe Zipper
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')

@@ -35,15 +35,15 @@ applyAtIndex :: Int -> (a -> a) -> [a] -> [a]
 applyAtIndex 0 f (y:ys) = f y:ys
 applyAtIndex n f (y:ys) = y:(applyAtIndex (n-1) f ys)
 
+insertAt :: Int -> a -> [a] -> [a]
+insertAt 0 x ys = x:ys
+insertAt n x (y:ys) = y:insertAt (n-1) x ys
+
 insertBefore :: Zipper -> Zipper
-insertBefore = id
--- insertBefore (Zipper s (TopLevel a b)) = Zipper s (TopLevel (Assignment UnknownTerm UnknownTerm UnknownTerm:a) b) .- selectPrev
--- insertBefore z = z .- goup .- insertBefore
+insertBefore (Zipper (Term Program t) (p:ps)) = Zipper (Term Program (insertAt p (Term AssignmentTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []]) t)) (p:ps)
 
 insertAfter :: Zipper -> Zipper
-insertAfter = id
--- insertAfter (Zipper s (TopLevel a b)) = Zipper s (TopLevel a (Assignment UnknownTerm UnknownTerm UnknownTerm:b)) .- selectNext
--- insertAfter z = z .- goup .- insertAfter
+insertAfter (Zipper (Term Program t) (p:ps)) = Zipper (Term Program (insertAt (p+1) (Term AssignmentTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []]) t)) (p:ps)
 
 replaceWithTerm :: Term -> Zipper -> Zipper
 replaceWithTerm t = try (replaceWithTerm' t)
@@ -61,7 +61,26 @@ replaceWithTerm'' t [] _ = t
 replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
 
 searchForNamedVariables :: Zipper -> [Term]
-searchForNamedVariables _ = []
+searchForNamedVariables z = filter (/= Term UnknownTerm []) (searchAbove (goup z) ++ prev)
+        where prev = case gototop z of
+                          Zipper _ [0] -> []
+                          _ -> searchBefore (selectPrev (gototop z))
+              searchAbove z = case termUnderCursor z of
+                                   Term FunctionTerm [a, _, _] -> a:searchAbove (goup z)
+                                   Term AssignmentTerm [_, _, _] -> []
+                                   _ -> searchForNamedVariables (goup z)
+              searchBefore z@(Zipper _ [0]) = case termUnderCursor z of
+                                                   Term AssignmentTerm [a, _, _] -> [a]
+              searchBefore z@(Zipper _ _) = case termUnderCursor z of
+                                                 Term AssignmentTerm [a, _, _] -> a:searchBefore (selectPrev z)
+
+searchForNamedVariables' :: Zipper -> [Term]
+searchForNamedVariables' z@(Zipper _ [0]) = case termUnderCursor z of
+        Term AssignmentTerm [a, _, _] -> [a]
+searchForNamedVariables' z@(Zipper _ p) = case termUnderCursor z of
+        Term FunctionTerm [a, _, _] -> a:searchForNamedVariables (goup z)
+        Term AssignmentTerm [a, _, _] -> a:searchForNamedVariables (selectPrev z)
+        _ -> searchForNamedVariables (goup z)
 -- searchForNamedVariables z@(Zipper _ (FunctionBody v _ _)) = v:searchForNamedVariables (goup z)
 -- searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _ _:_) _)) = v:searchForNamedVariables (selectPrev z)
 -- searchForNamedVariables z@(Zipper _ (TopLevel [] _)) = []
@@ -91,7 +110,10 @@ allPossibleTerms :: Zipper -> [Term]
 allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
 
 termTypeChecks :: Zipper -> Term -> Bool
-termTypeChecks (Zipper _ c) t = validateZipper (Zipper t c)
+termTypeChecks z t = case replaceWithTerm' t z of
+                Just z' -> validateZipper z'
+                Nothing -> False
+                        
 
 possibleTerms :: Zipper -> [Term]
 possibleTerms z = filter (termTypeChecks z) (allPossibleTerms z)

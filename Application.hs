@@ -14,7 +14,6 @@ import Data.Text
 
 import SymbolData
 import Movements
-import Renderer
 import Transformations
 
 import Graphics.Vty
@@ -30,16 +29,12 @@ data UIState = AddingName String
              | NotReading
              | Exiting
 
-type AppStateData = (Zipper, Renderer, UIState)
+type AppStateData = (Zipper, (), UIState)
 type AppState = State AppStateData
 
 changeUIState :: UIState -> AppState ()
 changeUIState nextUIState = do (z, r, _) <- get
                                put (z, r, nextUIState)
-
-changeRenderer :: Renderer -> AppState ()
-changeRenderer renderer = do (z, _, u) <- get
-                             put (z, renderer, u)
 
 changeZipper :: Zipper -> AppState ()
 changeZipper zipper = do (_, r, u) <- get
@@ -53,10 +48,6 @@ getUIState :: AppState UIState
 getUIState = do (_, _, u) <- get
                 return u
 
-getRenderer :: AppState Renderer
-getRenderer = do (_, r, _) <- get
-                 return r
-
 getZipper :: AppState Zipper
 getZipper = do (z, _, _) <- get
                return z
@@ -64,36 +55,33 @@ getZipper = do (z, _, _) <- get
 addingNameHandler :: Key -> String -> AppState ()
 addingNameHandler (KChar ' ') " " = return ()
 addingNameHandler (KChar k) s = do changeUIState (AddingName newName)
-                                   applyToZipper (replaceWithTerm (IdentifierTerm (pack newName)))
+                                   applyToZipper (replaceWithTerm (Term (IdentifierTerm (pack newName)) []))
                        where newName = case s of
                                  " " -> [k]
                                  _ -> s ++ [k]
 addingNameHandler KEnter s = case s of
                 " " -> do changeUIState NotReading
-                          applyToZipper (replaceWithTerm UnknownTerm)
+                          applyToZipper (replaceWithTerm (Term UnknownTerm []))
                 s' -> do changeUIState NotReading
                          applyToZipper nextHole
 addingNameHandler KBS s = case s of
                 [] -> return ()
                 [_] -> do changeUIState (AddingName " ")
-                          applyToZipper (replaceWithTerm (IdentifierTerm (pack " ")))
+                          applyToZipper (replaceWithTerm (Term (IdentifierTerm (pack " ")) []))
                 s' -> do changeUIState (AddingName (Prelude.init s'))
-                         applyToZipper (replaceWithTerm (IdentifierTerm (pack (Prelude.init s'))))
+                         applyToZipper (replaceWithTerm (Term (IdentifierTerm (pack (Prelude.init s'))) []))
 addingNameHandler _ _ = return ()
 
 notReadingHandler :: Key -> AppState ()
 notReadingHandler (KChar 'r') = do
     (z, r, u) <- get
-    case z of 
-         Zipper _ (FunctionArg _ _ _) -> do applyToZipper (replaceWithTerm (IdentifierTerm " "))
-                                            changeUIState (AddingName " ")
-         Zipper _ (AssignmentId _ _ _) -> do applyToZipper (replaceWithTerm (IdentifierTerm " "))
-                                             changeUIState (AddingName " ")
+    case termUnderCursor z of 
+         Term (IdentifierTerm _) _ -> do applyToZipper (replaceWithTerm (Term (IdentifierTerm " ") []))
+                                         changeUIState (AddingName " ")
          _ -> return ()
 notReadingHandler (KChar 'p') = do z <- getZipper
-                                   case z of
-                                        Zipper _ (FunctionArg _ _ _) -> return ()
-                                        Zipper _ (AssignmentId _ _ _) -> return ()
+                                   case termUnderCursor z of
+                                        Term (IdentifierTerm _) _ -> return ()
                                         _ -> changeUIState (SelectingTerm (possibleTerms z) 0)
 notReadingHandler (KChar 'n') = applyToZipper nextHole
 notReadingHandler (KChar 'N') = applyToZipper previousHole
@@ -103,13 +91,6 @@ notReadingHandler (KChar 'j') = applyToZipper selectFirst
 notReadingHandler (KChar 'l') = applyToZipper selectNext
 notReadingHandler (KChar 'h') = applyToZipper selectPrev
 notReadingHandler (KChar 'k') = applyToZipper goup
-notReadingHandler (KChar '\\') = applyToZipper (replaceWithTermAndSelectNext (FunctionTerm UnknownTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar '>') = applyToZipper (replaceWithTermAndSelectNext (FnTypeTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar 'b') = applyToZipper (replaceWithTermAndSelectNext BoolTypeTerm)
-notReadingHandler (KChar 't') = applyToZipper (replaceWithTermAndSelectNext (BooleanLiteralTerm True))
-notReadingHandler (KChar 'f') = applyToZipper (replaceWithTermAndSelectNext (BooleanLiteralTerm False))
-notReadingHandler (KChar 'i') = applyToZipper (replaceWithTermAndSelectNext (ConditionalTerm UnknownTerm UnknownTerm UnknownTerm))
-notReadingHandler (KChar '?') = applyToZipper (replaceWithTermAndSelectNext UnknownTerm)
 notReadingHandler KEsc = changeUIState Exiting
 notReadingHandler _  = return ()
 

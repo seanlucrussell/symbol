@@ -30,13 +30,20 @@ try f x = case f x of
         Just y -> y
         Nothing -> x
 
+-- assumes we are in bounds of array
+applyAtIndex :: Int -> (a -> a) -> [a] -> [a]
+applyAtIndex 0 f (y:ys) = f y:ys
+applyAtIndex n f (y:ys) = y:(applyAtIndex (n-1) f ys)
+
 insertBefore :: Zipper -> Zipper
-insertBefore (Zipper s (TopLevel a b)) = Zipper s (TopLevel (Assignment UnknownTerm UnknownTerm UnknownTerm:a) b) .- selectPrev
-insertBefore z = z .- goup .- insertBefore
+insertBefore = id
+-- insertBefore (Zipper s (TopLevel a b)) = Zipper s (TopLevel (Assignment UnknownTerm UnknownTerm UnknownTerm:a) b) .- selectPrev
+-- insertBefore z = z .- goup .- insertBefore
 
 insertAfter :: Zipper -> Zipper
-insertAfter (Zipper s (TopLevel a b)) = Zipper s (TopLevel a (Assignment UnknownTerm UnknownTerm UnknownTerm:b)) .- selectNext
-insertAfter z = z .- goup .- insertAfter
+insertAfter = id
+-- insertAfter (Zipper s (TopLevel a b)) = Zipper s (TopLevel a (Assignment UnknownTerm UnknownTerm UnknownTerm:b)) .- selectNext
+-- insertAfter z = z .- goup .- insertAfter
 
 replaceWithTerm :: Term -> Zipper -> Zipper
 replaceWithTerm t = try (replaceWithTerm' t)
@@ -44,33 +51,41 @@ replaceWithTerm t = try (replaceWithTerm' t)
 replaceWithTermAndSelectNext :: Term -> Zipper -> Zipper
 replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
 
+
 replaceWithTerm' :: Term -> Zipper -> Maybe Zipper
-replaceWithTerm' t z@(Zipper _ c) = let z' = Zipper t c in if validateZipper z' then Just z' else Nothing
+replaceWithTerm' t (Zipper x p) = if validateZipper replaced then Just replaced else Nothing
+        where replaced = Zipper (replaceWithTerm'' t p x) p
+
+replaceWithTerm'' :: Term -> [Int] -> Term -> Term
+replaceWithTerm'' t [] _ = t
+replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
 
 searchForNamedVariables :: Zipper -> [Term]
-searchForNamedVariables z@(Zipper _ (FunctionBody v _ _)) = v:searchForNamedVariables (goup z)
-searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _ _:_) _)) = v:searchForNamedVariables (selectPrev z)
-searchForNamedVariables z@(Zipper _ (TopLevel [] _)) = []
-searchForNamedVariables z = searchForNamedVariables (goup z)
+searchForNamedVariables _ = []
+-- searchForNamedVariables z@(Zipper _ (FunctionBody v _ _)) = v:searchForNamedVariables (goup z)
+-- searchForNamedVariables z@(Zipper _ (TopLevel (Assignment v _ _:_) _)) = v:searchForNamedVariables (selectPrev z)
+-- searchForNamedVariables z@(Zipper _ (TopLevel [] _)) = []
+-- searchForNamedVariables z = searchForNamedVariables (goup z)
 
 functionCalls :: Zipper -> [Term]
+functionCalls _ = []
 -- this is a dumb way of doing things!!! do it right!!! when you have more
 -- time!!!
-functionCalls z = concat [ [(ApplicationTerm x UnknownTerm)
-                  , (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm)
-                  , (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm)
-                  , (ApplicationTerm (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm) UnknownTerm)] | x <- searchForNamedVariables z]
+-- functionCalls z = concat [ [(ApplicationTerm x UnknownTerm)
+--                   , (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm)
+--                   , (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm)
+--                   , (ApplicationTerm (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm) UnknownTerm)] | x <- searchForNamedVariables z]
 
 
 standardTerms :: [Term]
-standardTerms = [ BooleanLiteralTerm True
-                , BooleanLiteralTerm False
-                , FunctionTerm UnknownTerm UnknownTerm UnknownTerm
-                , ConditionalTerm UnknownTerm UnknownTerm UnknownTerm
-                , FnTypeTerm UnknownTerm UnknownTerm
-                , BoolTypeTerm
-                , Assignment UnknownTerm UnknownTerm UnknownTerm
-                , UnknownTerm ]
+standardTerms = [ Term TrueTerm []
+                , Term FalseTerm []
+                , Term FunctionTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []]
+                , Term ConditionalTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []]
+                , Term FunctionTypeTerm [Term UnknownTerm [], Term UnknownTerm []]
+                , Term BoolTypeTerm []
+                , Term AssignmentTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []]
+                , Term UnknownTerm [] ]
 
 allPossibleTerms :: Zipper -> [Term]
 allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms

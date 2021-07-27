@@ -12,10 +12,21 @@ module SymbolData
     , BoolTypeTerm
     , AssignmentTerm
     , Program)
-  , Zipper (Zipper)
+  , Zipper
+  , Path
   , Term (Term)
   , zipperToTerm
   , termUnderCursor
+  , tokenUnderCursor
+  , blankIdentifier
+  , blankTrue
+  , blankFalse
+  , blankUnknown
+  , blankFunction
+  , blankConditional
+  , blankFunctionType
+  , blankBoolType
+  , blankAssignment
   , z) where
 import qualified Data.Text as T
 
@@ -34,16 +45,33 @@ data Token = IdentifierTerm T.Text
            | Program
            deriving (Eq,Show)
 
-data Term =  Term Token [Term]
-          deriving (Eq,Show)
+data Term = Term Token [Term] deriving (Eq,Show)
 
-data Zipper = Zipper Term [Int] deriving (Eq,Show)
+type Path = [Int]
+type Zipper = (Term, Path)
 
 termUnderCursor :: Zipper -> Term
-termUnderCursor (Zipper t []) = t
-termUnderCursor (Zipper (Term _ ts) (x:xs)) = termUnderCursor (Zipper (ts!!x) xs)
+termUnderCursor (t, []) = t
+termUnderCursor ((Term _ ts), (x:xs)) = termUnderCursor (ts!!x, xs)
+
+extractToken :: Term -> Token
+extractToken (Term t _) = t
+
+tokenUnderCursor :: Zipper -> Token
+tokenUnderCursor = extractToken . termUnderCursor
 
 zipperToTerm :: Zipper -> Term
-zipperToTerm (Zipper t _) = t
+zipperToTerm (t, _) = t
 
-z = Zipper (Term Program [(Term AssignmentTerm [Term UnknownTerm [], Term UnknownTerm [], Term UnknownTerm []])]) [0]
+blankIdentifier t = Term (IdentifierTerm t) []
+blankTrue = Term TrueTerm []
+blankFalse = Term FalseTerm []
+blankUnknown = Term UnknownTerm []
+blankFunction = Term FunctionTerm [blankUnknown, blankUnknown, blankUnknown]
+blankConditional = Term ConditionalTerm [blankUnknown, blankUnknown, blankUnknown]
+blankFunctionType = Term FunctionTypeTerm [blankUnknown, blankUnknown]
+blankBoolType = Term BoolTypeTerm []
+blankAssignment = Term AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
+
+z :: Zipper
+z = (Term Program [blankAssignment], [0])

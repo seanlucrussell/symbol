@@ -30,20 +30,20 @@ import qualified Control.Monad.State as S
 
 appEvent :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
 appEvent d (VtyEvent (EvKey e [] )) = case nextState of 
-                     (_, _, Exiting) -> halt d
+                     (_, Exiting) -> halt d
                      _ -> continue nextState
   where nextState = S.execState (stateHandler e) d
 appEvent d _ = continue d
 
 drawUI :: AppStateData -> [Widget ()]
-drawUI (z, r, u) = (case u of
+drawUI (z, u) = (case u of
      SelectingTerm l n -> [popup (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget z]
 
 popup :: L.List () Term -> Widget ()
 popup l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
-                                                                    [ str " "
-                                                                    , C.hCenter box
+                              [ str " "
+                              , C.hCenter box
                               , str " "
                               , C.hCenter (str "Use arrow keys to move up/down.")
                               , C.hCenter (str "Press p to exit.")
@@ -67,9 +67,6 @@ theMap :: A.AttrMap
 theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
     ]
-
-initialState :: AppStateData
-initialState = (z, (), NotReading)
 
 theApp :: App AppStateData e ()
 theApp =

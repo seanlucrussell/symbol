@@ -6,6 +6,8 @@ module Renderer
   ) where
 
 import SymbolData
+import Utilities
+
 import Data.Text.Prettyprint.Doc
 import qualified Data.Text as T
 import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
@@ -16,11 +18,7 @@ import Brick.Widgets.Core (vBox, str, modifyDefAttr)
 import Lens.Micro
 
 renderZipper :: Zipper -> Doc Marking
-renderZipper (Zipper t p) = rz p t
-
-changeAtIndex :: Int -> a -> [a] -> [a]
-changeAtIndex 0 f (y:ys) = f:ys
-changeAtIndex n f (y:ys) = y:(changeAtIndex (n-1) f ys)
+renderZipper (t, p) = rz p t
 
 rz :: [Int] -> Term -> Doc Marking
 rz [] t = annotate Highlight (renderTerm t)
@@ -65,6 +63,8 @@ renderFunctionType [a, b] = parens (align (sep [a, "->", b]))
 renderBoolType _ = annotate Yellow "Bool"
 renderAssignment [a, b, c] = a <+> ":" <+> b <> line <> a <+> "=" <+> c
 renderProgram a = vsep (punctuate line a)
+
+-- below is generic plumbing to transform a Doc Marking into a Widget for Brick
 
 data StackInstructions = StackLiteral String
                        | Push Marking

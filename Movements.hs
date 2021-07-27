@@ -13,35 +13,18 @@ module Movements
   , selectNext'
   , selectPrev'
   , selectLast'
-  , gototop
-  , goup) where
+  , goToTop
+  , goUp) where
 
 import SymbolData
+import Utilities
 
 import qualified Data.Text as T
 
 import Data.List
-import Data.Maybe
 import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
-
--- move to Maybe based thing, so that we can compose successful operations
-
--- concatenate operations with this operator
-(.-) :: a -> (a -> b) -> b
-(.-) x f = f x
-
--- try to apply a function that might fail, fall back to current value if it
--- does
-try :: (a -> Maybe a) -> a -> a
-try f x = fromMaybe x (f x)
-
--- keep applying a function until the function fails
-untilFailure :: (a -> Maybe a) -> a -> Maybe a
-untilFailure f x = case f x of
-        Just y  -> untilFailure f y
-        Nothing -> Just x
 
 -- movements: the underlying ast doesn't change, just the position in it
 
@@ -63,11 +46,11 @@ selectPrev = try selectPrev'
 selectLast :: Zipper -> Zipper
 selectLast = try selectLast'
 
-goup :: Zipper -> Zipper
-goup = try goup'
+goUp :: Zipper -> Zipper
+goUp = try goUp'
 
-gototop :: Zipper -> Zipper
-gototop = try (untilFailure goup')
+goToTop :: Zipper -> Zipper
+goToTop = try (untilFailure goUp')
 
 selectLast' :: Zipper -> Maybe Zipper
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')
@@ -85,7 +68,7 @@ searchChildrenRight :: Zipper -> Maybe Zipper
 searchChildrenRight z = if zipperOnHole z then Just z else selectFirst' z >>= searchDownRight
 searchUpRight :: Zipper -> Maybe Zipper
 searchUpRight z = (parent >>= selectNext' >>= searchDownRight) <|> (parent >>= searchUpRight)
-  where parent = goup' z
+  where parent = goUp' z
 
 previousHole' :: Zipper -> Maybe Zipper
 previousHole' w = (selectPrev' w >>= searchDownLeft) <|> searchUpLeft w
@@ -96,26 +79,45 @@ searchChildrenLeft :: Zipper -> Maybe Zipper
 searchChildrenLeft z = if zipperOnHole z then Just z else selectLast' z >>= searchDownLeft
 searchUpLeft :: Zipper -> Maybe Zipper
 searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= searchUpLeft)
-   where parent = goup' z
+   where parent = goUp' z
+
+-- check if a given path is valid
+validatePath :: Term -> Path -> Bool
+validatePath _ [] = False
+validatePath t ps = validatePath' t ps
+  where validatePath' (Term _ []) (p:ps) = False
+        validatePath' (Term _ ts) (p:ps) = validatePath'' ts p
+                where validatePath'' (x:xs) 0 = validatePath' x ps
+                      validatePath'' (x:xs) n = if n > 0 then validatePath'' xs (n-1) else False
+                      validatePath'' [] n = False
+        validatePath' (Term _ _) [] = True
 
 selectFirst' :: Zipper -> Maybe Zipper
-selectFirst' z@(Zipper t p) = case termUnderCursor z of
-        Term _ [] -> Nothing
-        Term _ _ -> Just (Zipper t (p ++ [0]))
-
-selectPrev' :: Zipper -> Maybe Zipper
-selectPrev' (Zipper t@(Term _ ts) [x]) = if x == 0 then Nothing else Just (Zipper t [x - 1])
-selectPrev' (Zipper t@(Term _ ts) (x:xs)) = do (Zipper _ xs') <- selectPrev' (Zipper (ts!!x) xs)
-                                               return (Zipper t (x:xs'))
-selectPrev' _ = Nothing
+selectFirst' = attemptPathManipulation selectFirst''
 
 selectNext' :: Zipper -> Maybe Zipper
-selectNext' (Zipper t@(Term _ ts) [x]) = if x == length ts - 1 then Nothing else Just (Zipper t [x + 1])
-selectNext' (Zipper t@(Term _ ts) (x:xs)) = do (Zipper _ xs') <- selectNext' (Zipper (ts!!x) xs)
-                                               return (Zipper t (x:xs'))
-selectNext' _ = Nothing
+selectNext' = attemptPathManipulation selectNext''
 
-goup' :: Zipper -> Maybe Zipper
-goup' (Zipper t []) = Nothing
-goup' (Zipper t [_]) = Nothing
-goup' (Zipper t p) = Just (Zipper t (init p))
+selectPrev' :: Zipper -> Maybe Zipper
+selectPrev' = attemptPathManipulation selectPrev''
+
+goUp' :: Zipper -> Maybe Zipper
+goUp' = attemptPathManipulation goUp''
+
+attemptPathManipulation :: (Path -> Path) -> Zipper -> Maybe Zipper
+attemptPathManipulation m (t, p) = toMaybe (validatePath t p') (t, p')
+        where p' = m p
+
+-- simple path manipulations. we then validate these
+
+selectFirst'' :: Path -> Path
+selectFirst'' p =  p ++ [0]
+
+selectPrev'' :: Path -> Path
+selectPrev'' p = init p ++ [last p - 1]
+
+selectNext'' :: Path -> Path
+selectNext'' p = init p ++ [last p + 1]
+
+goUp'' :: Path -> Path
+goUp'' = init

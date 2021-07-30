@@ -11,26 +11,29 @@ module Application
     , NotReading
     , Exiting)) where
 
-import SymbolData
+import AST
 import Movements
 import Transformations
 import Utilities
+
+import SymbolData
+import SymbolMovements
 
 import Data.Text
 import Graphics.Vty
 import Control.Monad.State
 
 data UIState = AddingName String
-             | SelectingTerm [Term] Int
+             | SelectingTerm [Term Token] Int
              | NotReading
              | Exiting
 
-type AppStateData = (Zipper, UIState)
+type AppStateData = (Zipper Token, UIState)
 type AppState = State AppStateData
 
 -- language specific transformations
 
-exitReader :: (Zipper -> Zipper) -> AppState ()
+exitReader :: (Zipper Token -> Zipper Token) -> AppState ()
 exitReader f = do changeUIState NotReading
                   applyToZipper f
 
@@ -49,7 +52,7 @@ addingNameHandler KBS s = case s of []  -> return ()
                                     s'  -> setName (Prelude.init s')
 addingNameHandler _ _ = return ()
 
-overIdentifier :: Zipper -> Bool
+overIdentifier :: Zipper Token -> Bool
 overIdentifier z@(_, p) = case tokenUnderCursor (goUp z) of
         FunctionTerm -> Prelude.last p == 0
         AssignmentTerm -> Prelude.last p == 0
@@ -72,10 +75,10 @@ changeUIState :: UIState -> AppState ()
 changeUIState u = do (z, _) <- get
                      put (z, u)
 
-changeZipper :: Zipper -> AppState ()
+changeZipper :: Zipper Token -> AppState ()
 changeZipper = applyToZipper . const
 
-applyToZipper :: (Zipper -> Zipper) -> AppState ()
+applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
 applyToZipper f = do (z, u) <- get
                      put (f z, u)
 
@@ -83,14 +86,14 @@ getUIState :: AppState UIState
 getUIState = do (_, u) <- get
                 return u
 
-getZipper :: AppState Zipper
+getZipper :: AppState (Zipper Token)
 getZipper = do (z, _) <- get
                return z
 
-selectTerm :: [Term] -> Int -> AppState ()
+selectTerm :: [Term Token] -> Int -> AppState ()
 selectTerm l n = changeUIState (SelectingTerm l (mod n (Prelude.length l)))
 
-selectingTermHandler :: Key -> [Term] -> Int -> AppState ()
+selectingTermHandler :: Key -> [Term Token] -> Int -> AppState ()
 selectingTermHandler (KChar 'p') _ _ = changeUIState NotReading
 selectingTermHandler KEnter l n      = exitReader (nextHole . replaceWithTerm (l!!n))
 selectingTermHandler (KChar 'k') l n = selectTerm l (n-1)

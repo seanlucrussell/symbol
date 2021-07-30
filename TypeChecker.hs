@@ -3,6 +3,7 @@ module TypeChecker
   ( validateZipper ) where
 
 import SymbolData
+import AST
 
 import qualified Data.Text as T
 
@@ -14,7 +15,7 @@ data Type = BooleanType
           deriving (Eq,Show)
 
 -- checks that a whole program is specified correctly
-validateProgram :: Term -> Bool
+validateProgram :: Term Token -> Bool
 validateProgram (Term Program t) = validateProgram' baseContext t
         where validateProgram' c (Term AssignmentTerm [Term (IdentifierTerm a) [], t', b]:ts) = case typeOf c b of
                 Just t -> case termToType t' of
@@ -50,7 +51,7 @@ typeEquality (FunctionType a b) (FunctionType c d) = typeEquality a c && typeEqu
 typeEquality _ _ = False
 
 -- maps syntactic terms like FnTermType into the corresponding type representation
-termToType :: Term -> Maybe Type
+termToType :: Term Token -> Maybe Type
 termToType (Term FunctionTypeTerm [a, b]) = do a' <- termToType a
                                                b' <- termToType b
                                                return (FunctionType a' b')
@@ -59,7 +60,7 @@ termToType (Term UnknownTerm []) = Just UnknownType
 termToType _ = Nothing
 
 -- returns Nothing if the type checking is invalid
-typeOf :: Context -> Term -> Maybe Type
+typeOf :: Context -> Term Token -> Maybe Type
 typeOf c (Term (IdentifierTerm i) []) = Just (c i)
 typeOf c (Term FunctionTerm [Term UnknownTerm [], t, b]) = do argType <- termToType t
                                                               bodyType <- typeOf c b
@@ -84,5 +85,5 @@ typeOf c (Term ConditionalTerm [b, x, y]) = do bType <- typeOf c b
 typeOf _ (Term UnknownTerm []) = Just UnknownType
 typeOf _ _ = Nothing
 
-validateZipper :: Zipper -> Bool
+validateZipper :: Zipper Token -> Bool
 validateZipper = validateProgram . zipperToTerm

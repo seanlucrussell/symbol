@@ -3,14 +3,16 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Main where
 
-import Data.Text
 
+import AST
 import SymbolData
+import SymbolRenderer
 import Movements
 import Renderer
 import Transformations
 import Application
 
+import Data.Text
 import Graphics.Vty
 import Brick
 
@@ -40,7 +42,7 @@ drawUI (z, u) = (case u of
      SelectingTerm l n -> [popup (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget z]
 
-popup :: L.List () Term -> Widget ()
+popup :: L.List () (Term Token) -> Widget ()
 popup l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
                               [ str " "
                               , C.hCenter box

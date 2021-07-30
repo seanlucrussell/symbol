@@ -1,22 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Movements
-  ( (.-)
-  , previousHole
-  , nextHole
-  , selectFirst
+  ( selectFirst
   , selectNext
   , selectPrev
   , selectLast
-  , previousHole'
-  , nextHole'
   , selectFirst'
   , selectNext'
   , selectPrev'
   , selectLast'
+  , previousHole''
+  , nextHole''
   , goToTop
   , goUp) where
 
-import SymbolData
+import AST
 import Utilities
 
 import qualified Data.Text as T
@@ -28,61 +25,62 @@ import Control.Applicative
 
 -- movements: the underlying ast doesn't change, just the position in it
 
-previousHole :: Zipper -> Zipper
-previousHole = try previousHole'
-
-nextHole :: Zipper -> Zipper
-nextHole = try nextHole'
-
-selectFirst :: Zipper -> Zipper
+selectFirst :: Zipper a -> Zipper a
 selectFirst = try selectFirst'
 
-selectNext :: Zipper -> Zipper
+selectNext :: Zipper a -> Zipper a
 selectNext = try selectNext'
 
-selectPrev :: Zipper -> Zipper
+selectPrev :: Zipper a -> Zipper a
 selectPrev = try selectPrev'
 
-selectLast :: Zipper -> Zipper
+selectLast :: Zipper a -> Zipper a
 selectLast = try selectLast'
 
-goUp :: Zipper -> Zipper
+goUp :: Zipper a -> Zipper a
 goUp = try goUp'
 
-goToTop :: Zipper -> Zipper
+goToTop :: Zipper a -> Zipper a
 goToTop = try (untilFailure goUp')
 
-selectLast' :: Zipper -> Maybe Zipper
+selectLast' :: Zipper a -> Maybe (Zipper a)
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 
-zipperOnHole :: Zipper -> Bool
-zipperOnHole z = termUnderCursor z == Term UnknownTerm []
+-- searching for term can be done in a language agnostic way
+-- searchNext :: (Term a -> Bool) -> Term a -> Path -> Maybe Path
+-- searchPrev :: (Term a -> Bool) -> Term a -> Path -> Maybe Path
+-- then we just make a simple specialization
+-- nextHole :: Term Token -> Path -> Maybe Path
+-- nextLeaf :: Zipper a -> Maybe Path
+-- nextLeaf z = searchStart z >>= searchDown <|> searchUp z
 
-nextHole' :: Zipper -> Maybe Zipper
-nextHole' w = (searchStart w >>= searchDownRight) <|> searchUpRight w
-   where searchStart = if zipperOnHole w then selectNext' else Just
 
-searchDownRight :: Zipper -> Maybe Zipper
-searchDownRight z = (searchChildrenRight z) <|> (selectNext' z >>= searchDownRight)
-searchChildrenRight :: Zipper -> Maybe Zipper
-searchChildrenRight z = if zipperOnHole z then Just z else selectFirst' z >>= searchDownRight
-searchUpRight :: Zipper -> Maybe Zipper
-searchUpRight z = (parent >>= selectNext' >>= searchDownRight) <|> (parent >>= searchUpRight)
+nextHole'' :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+nextHole'' f z = (searchStart z >>= searchDownRight f) <|> searchUpRight f z
+   where searchStart = if f z then selectNext' else Just
+
+searchDownRight :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchDownRight f z = (searchChildrenRight f z) <|> (selectNext' z >>= searchDownRight f)
+searchChildrenRight :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchChildrenRight f z = if f z then Just z else selectFirst' z >>= searchDownRight f
+searchUpRight :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchUpRight f z = (parent >>= selectNext' >>= searchDownRight f) <|> (parent >>= searchUpRight f)
   where parent = goUp' z
 
-previousHole' :: Zipper -> Maybe Zipper
-previousHole' w = (selectPrev' w >>= searchDownLeft) <|> searchUpLeft w
 
-searchDownLeft :: Zipper -> Maybe Zipper
-searchDownLeft z = searchChildrenLeft z <|> (selectPrev' z >>= searchDownLeft)
-searchChildrenLeft :: Zipper -> Maybe Zipper
-searchChildrenLeft z = if zipperOnHole z then Just z else selectLast' z >>= searchDownLeft
-searchUpLeft :: Zipper -> Maybe Zipper
-searchUpLeft z = (parent >>= selectPrev' >>= searchDownLeft) <|> (parent >>= searchUpLeft)
+previousHole'' :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+previousHole'' f z = (selectPrev' z >>= searchDownLeft f) <|> searchUpLeft f z
+
+searchDownLeft :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchDownLeft f z = searchChildrenLeft f z <|> (selectPrev' z >>= searchDownLeft f)
+searchChildrenLeft :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchChildrenLeft f z = if f z then Just z else selectLast' z >>= searchDownLeft f
+searchUpLeft :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
+searchUpLeft f z = (parent >>= selectPrev' >>= searchDownLeft f) <|> (parent >>= searchUpLeft f)
    where parent = goUp' z
 
 -- check if a given path is valid
-validatePath :: Term -> Path -> Bool
+validatePath :: Term a -> Path -> Bool
 validatePath _ [] = False
 validatePath t ps = validatePath' t ps
   where validatePath' (Term _ []) (p:ps) = False
@@ -92,19 +90,19 @@ validatePath t ps = validatePath' t ps
                       validatePath'' [] n = False
         validatePath' (Term _ _) [] = True
 
-selectFirst' :: Zipper -> Maybe Zipper
+selectFirst' :: Zipper a -> Maybe (Zipper a)
 selectFirst' = attemptPathManipulation selectFirst''
 
-selectNext' :: Zipper -> Maybe Zipper
+selectNext' :: Zipper a -> Maybe (Zipper a)
 selectNext' = attemptPathManipulation selectNext''
 
-selectPrev' :: Zipper -> Maybe Zipper
+selectPrev' :: Zipper a -> Maybe (Zipper a)
 selectPrev' = attemptPathManipulation selectPrev''
 
-goUp' :: Zipper -> Maybe Zipper
+goUp' :: Zipper a -> Maybe (Zipper a)
 goUp' = attemptPathManipulation goUp''
 
-attemptPathManipulation :: (Path -> Path) -> Zipper -> Maybe Zipper
+attemptPathManipulation :: (Path -> Path) -> Zipper a -> Maybe (Zipper a)
 attemptPathManipulation m (t, p) = toMaybe (validatePath t p') (t, p')
         where p' = m p
 

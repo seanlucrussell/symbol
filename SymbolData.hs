@@ -12,12 +12,6 @@ module SymbolData
     , BoolTypeTerm
     , AssignmentTerm
     , Program)
-  , Zipper
-  , Path
-  , Term (Term)
-  , zipperToTerm
-  , termUnderCursor
-  , tokenUnderCursor
   , blankIdentifier
   , blankTrue
   , blankFalse
@@ -28,6 +22,9 @@ module SymbolData
   , blankBoolType
   , blankAssignment
   , z) where
+
+import AST
+
 import qualified Data.Text as T
 
 {-# LANGUAGE XOverloadedStrings #-}
@@ -45,24 +42,6 @@ data Token = IdentifierTerm T.Text
            | Program
            deriving (Eq,Show)
 
-data Term = Term Token [Term] deriving (Eq,Show)
-
-type Path = [Int]
-type Zipper = (Term, Path)
-
-termUnderCursor :: Zipper -> Term
-termUnderCursor (t, []) = t
-termUnderCursor ((Term _ ts), (x:xs)) = termUnderCursor (ts!!x, xs)
-
-extractToken :: Term -> Token
-extractToken (Term t _) = t
-
-tokenUnderCursor :: Zipper -> Token
-tokenUnderCursor = extractToken . termUnderCursor
-
-zipperToTerm :: Zipper -> Term
-zipperToTerm (t, _) = t
-
 blankIdentifier t = Term (IdentifierTerm t) []
 blankTrue = Term TrueTerm []
 blankFalse = Term FalseTerm []
@@ -73,5 +52,5 @@ blankFunctionType = Term FunctionTypeTerm [blankUnknown, blankUnknown]
 blankBoolType = Term BoolTypeTerm []
 blankAssignment = Term AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
 
-z :: Zipper
+z :: Zipper Token
 z = (Term Program [blankAssignment], [0])

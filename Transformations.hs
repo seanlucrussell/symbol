@@ -6,10 +6,13 @@ module Transformations
   , replaceWithTermAndSelectNext
   , replaceWithTerm) where
 
-import SymbolData
+import AST
 import Movements
 import TypeChecker
 import Utilities
+
+import SymbolData
+import SymbolMovements
 
 import qualified Data.Text as T
 
@@ -20,28 +23,28 @@ import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
 
-insertBefore :: Zipper -> Zipper
+insertBefore :: Zipper Token -> Zipper Token
 insertBefore (Term Program t, p:ps) = (Term Program (insertAt p blankAssignment t), p:ps)
 
-insertAfter :: Zipper -> Zipper
+insertAfter :: Zipper Token -> Zipper Token
 insertAfter (Term Program t, p:ps) = (Term Program (insertAt (p+1) blankAssignment t), p:ps)
 
-replaceWithTerm :: Term -> Zipper -> Zipper
+replaceWithTerm :: Term Token -> Zipper Token -> Zipper Token
 replaceWithTerm t = try (replaceWithTerm' t)
 
-replaceWithTermAndSelectNext :: Term -> Zipper -> Zipper
+replaceWithTermAndSelectNext :: Term Token -> Zipper Token -> Zipper Token
 replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
 
 
-replaceWithTerm' :: Term -> Zipper -> Maybe Zipper
+replaceWithTerm' :: Term Token -> Zipper Token -> Maybe (Zipper Token)
 replaceWithTerm' t (x, p) = if validateZipper replaced then Just replaced else Nothing
         where replaced = (replaceWithTerm'' t p x, p)
 
-replaceWithTerm'' :: Term -> [Int] -> Term -> Term
+replaceWithTerm'' :: Term a -> [Int] -> Term a -> Term a
 replaceWithTerm'' t [] _ = t
 replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
 
-searchForNamedVariables :: Zipper -> [Term]
+searchForNamedVariables :: Zipper Token -> [Term Token]
 searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ prev)
         where prev = case goToTop z of
                           (_, [0]) -> []
@@ -55,7 +58,7 @@ searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ pr
               searchBefore z@(_, _) = case termUnderCursor z of
                                                  Term AssignmentTerm [a, _, _] -> a:searchBefore (selectPrev z)
 
-functionCalls :: Zipper -> [Term]
+functionCalls :: Zipper Token -> [Term a]
 functionCalls _ = []
 -- this is a dumb way of doing things!!! do it right!!! when you have more
 -- time!!!
@@ -65,7 +68,7 @@ functionCalls _ = []
 --                   , (ApplicationTerm (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm) UnknownTerm)] | x <- searchForNamedVariables z]
 
 
-standardTerms :: [Term]
+standardTerms :: [Term Token]
 standardTerms = [ blankTrue 
                 , blankFalse 
                 , blankFunction 
@@ -75,14 +78,14 @@ standardTerms = [ blankTrue
                 , blankAssignment
                 , blankUnknown ]
 
-allPossibleTerms :: Zipper -> [Term]
+allPossibleTerms :: Zipper Token -> [Term Token]
 allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
 
-termTypeChecks :: Zipper -> Term -> Bool
+termTypeChecks :: Zipper Token -> Term Token -> Bool
 termTypeChecks z t = case replaceWithTerm' t z of
                 Just z' -> validateZipper z'
                 Nothing -> False
                         
 
-possibleTerms :: Zipper -> [Term]
+possibleTerms :: Zipper Token -> [Term Token]
 possibleTerms z = filter (termTypeChecks z) (allPossibleTerms z)

@@ -4,6 +4,7 @@ module Utilities
         , try
         , untilFailure
         , toMaybe
+        , maybeToBool
         , changeAtIndex
         , applyAtIndex
         , insertAt
@@ -33,6 +34,10 @@ untilFailure f x = case f x of
 toMaybe :: Bool -> a -> Maybe a
 toMaybe True x = Just x
 toMaybe False _ = Nothing
+
+maybeToBool :: Maybe a -> Bool
+maybeToBool (Just _) = True
+maybeToBool Nothing  = False
 
 changeAtIndex :: Int -> a -> [a] -> [a]
 changeAtIndex n = applyAtIndex n . const

@@ -35,14 +35,9 @@ replaceWithTerm t = try (replaceWithTerm' t)
 replaceWithTermAndSelectNext :: Term Token -> Zipper Token -> Zipper Token
 replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
 
-
 replaceWithTerm' :: Term Token -> Zipper Token -> Maybe (Zipper Token)
-replaceWithTerm' t (x, p) = if validateZipper replaced then Just replaced else Nothing
+replaceWithTerm' t (x, p) = toMaybe (validateZipper replaced) replaced
         where replaced = (replaceWithTerm'' t p x, p)
-
-replaceWithTerm'' :: Term a -> [Int] -> Term a -> Term a
-replaceWithTerm'' t [] _ = t
-replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
 
 searchForNamedVariables :: Zipper Token -> [Term Token]
 searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ prev)
@@ -89,3 +84,10 @@ termTypeChecks z t = case replaceWithTerm' t z of
 
 possibleTerms :: Zipper Token -> [Term Token]
 possibleTerms z = filter (termTypeChecks z) (allPossibleTerms z)
+
+-- language agnostic
+
+replaceWithTerm'' :: Term a -> [Int] -> Term a -> Term a
+replaceWithTerm'' t [] _ = t
+replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
+

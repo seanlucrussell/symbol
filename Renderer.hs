@@ -19,22 +19,33 @@ import qualified Brick
 import Brick.Types (Widget)
 import Brick.Widgets.Core (vBox, str, modifyDefAttr)
 import Lens.Micro
+import Control.Monad
 
 -- generic stuff for rendering zippers
 
 class Renderable a where
-  renderTerm' :: a -> [Doc Marking] -> Doc Marking
+  renderTerm' :: Maybe (a,Int) -> a -> [Doc Marking] -> Doc Marking
 
 renderZipper :: Renderable a => Zipper a -> Doc Marking
-renderZipper (t, p) = rz p t
+renderZipper (t, p) = rz Nothing p t
 
-rz :: Renderable a => [Int] -> Term a -> Doc Marking
-rz [] t = annotate Highlight (renderTerm t)
-rz (p:ps) (Term x ts) = renderTerm' x (changeAtIndex p (rz ps (ts!!p)) (fmap renderTerm ts))
+rz :: Renderable a => Maybe (a,Int) -> Path -> Term a -> Doc Marking
+rz c [] t = annotate Highlight (renderTerm c t)
+rz c (p:ps) (Term x ts) = renderTerm' c x [if p' == p then rz (Just (x,p')) ps t' else renderTerm (Just (x,p')) t' | (t',p') <- zip ts [0..] ]
+-- rz c (p:ps) (Term x ts) = renderTerm' c x (changeAtIndex p (rz ps (ts!!p)) ts)
 
+flatten :: Term a -> [a]
+flatten (Term x xs) = x:join (fmap flatten xs)
 
-renderTerm :: Renderable a => Term a -> Doc Marking
-renderTerm (Term t ts) = renderTerm' t (fmap renderTerm ts)
+-- what we want
+-- render :: Context -> Term a -> Term (Doc Marking)
+-- renderZipper' :: Zipper (Doc Marking) -> Doc Marking
+-- renderZipper' = applyAtCursor (annotate Highlight)
+-- renderZipper :: Zipper a -> Doc Marking
+-- renderZipper (t, p) = renderZipper' (render BaseContext t ???
+
+renderTerm :: Renderable a => Maybe (a,Int) -> Term a -> Doc Marking
+renderTerm c (Term t ts) = renderTerm' c t [renderTerm (Just (t,p)) t' | (p,t') <- zip [0..] ts]
 
 -- below is generic plumbing to transform a Doc Marking into a Widget for Brick
 

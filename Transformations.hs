@@ -47,20 +47,25 @@ searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ pr
               searchAbove z = case termUnderCursor z of
                                    Term FunctionTerm [a, _, _] -> a:searchAbove (goUp z)
                                    Term AssignmentTerm [_, _, _] -> []
-                                   _ -> searchForNamedVariables (goUp z)
+                                   _ -> searchAbove (goUp z)
               searchBefore z@(_, [0]) = case termUnderCursor z of
                                                    Term AssignmentTerm [a, _, _] -> [a]
               searchBefore z@(_, _) = case termUnderCursor z of
                                                  Term AssignmentTerm [a, _, _] -> a:searchBefore (selectPrev z)
 
-functionCalls :: Zipper Token -> [Term a]
-functionCalls _ = []
--- this is a dumb way of doing things!!! do it right!!! when you have more
--- time!!!
--- functionCalls z = concat [ [(ApplicationTerm x UnknownTerm)
---                   , (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm)
---                   , (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm)
---                   , (ApplicationTerm (ApplicationTerm (ApplicationTerm (ApplicationTerm x UnknownTerm) UnknownTerm) UnknownTerm) UnknownTerm)] | x <- searchForNamedVariables z]
+-- get all named variables
+-- for each variable:
+--      if variable is function type, then add (ApplicationTerm id unknownTerm):recurse
+-- what do we do about terms of unknow type? also need to do some work to get
+-- type checker to support this
+--
+-- for now, do it this way. BUT! this is a dumb way of doing things!!! do it
+-- right!!! when you have more time!!!
+functionCalls :: Zipper Token -> [Term Token]
+functionCalls z = concat [ fmap (app x) [1..5] | x <- searchForNamedVariables z]
+        where app x 0 = x
+              app x n = Term ApplicationTerm [app x (n-1), blankUnknown]
+
 
 
 standardTerms :: [Term Token]
@@ -68,6 +73,7 @@ standardTerms = [ blankTrue
                 , blankFalse 
                 , blankFunction 
                 , blankConditional 
+                , blankApplication
                 , blankFunctionType 
                 , blankBoolType 
                 , blankAssignment

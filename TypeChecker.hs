@@ -60,6 +60,7 @@ valTrm c (Term ApplicationTerm [x,y]) = do x' <- valTrm c x
                                            yt <- typeOf c y
                                            case xt of
                                                 FunctionType a b -> if typeEquality a yt then return (App x' y') else Nothing
+                                                UnknownType -> return (App x' y')
                                                 _ -> Nothing
 valTrm c (Term ConditionalTerm [x,y,z]) = do x' <- valTrm c x
                                              y' <- valTrm c y

@@ -103,14 +103,16 @@ selectingTermHandler KDown l n       = selectTerm l (n+1)
 selectingTermHandler _ _ _           = return ()
 
 notReadingHandler :: Key -> AppState ()
-notReadingHandler (KChar 'n') = applyToZipper nextHole
-notReadingHandler (KChar 'N') = applyToZipper previousHole
-notReadingHandler (KChar 'j') = applyToZipper selectFirst
-notReadingHandler (KChar 'l') = applyToZipper selectNext
-notReadingHandler (KChar 'h') = applyToZipper selectPrev
-notReadingHandler (KChar 'k') = applyToZipper goUp
-notReadingHandler KEsc        = changeUIState Exiting
-notReadingHandler k           = languageModifier k
+notReadingHandler (KChar 'n')  = applyToZipper nextHole
+notReadingHandler (KChar 'N')  = applyToZipper previousHole
+notReadingHandler (KChar '\t') = applyToZipper nextLeaf
+notReadingHandler KBackTab     = applyToZipper prevLeaf
+notReadingHandler (KChar 'j')  = applyToZipper selectFirst
+notReadingHandler (KChar 'l')  = applyToZipper selectNext
+notReadingHandler (KChar 'h')  = applyToZipper selectPrev
+notReadingHandler (KChar 'k')  = applyToZipper goUp
+notReadingHandler KEsc         = changeUIState Exiting
+notReadingHandler k            = languageModifier k
 
 initialState :: AppStateData
 initialState = (z, NotReading)

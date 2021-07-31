@@ -18,6 +18,7 @@ module SymbolData
   , blankUnknown
   , blankFunction
   , blankConditional
+  , blankApplication
   , blankFunctionType
   , blankBoolType
   , blankAssignment
@@ -49,6 +50,7 @@ blankUnknown = Term UnknownTerm []
 blankFunction = Term FunctionTerm [blankUnknown, blankUnknown, blankUnknown]
 blankConditional = Term ConditionalTerm [blankUnknown, blankUnknown, blankUnknown]
 blankFunctionType = Term FunctionTypeTerm [blankUnknown, blankUnknown]
+blankApplication = Term ApplicationTerm [blankUnknown, blankUnknown]
 blankBoolType = Term BoolTypeTerm []
 blankAssignment = Term AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
 

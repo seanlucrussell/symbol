@@ -8,6 +8,8 @@ module Movements
   , selectNext'
   , selectPrev'
   , selectLast'
+  , nextLeaf
+  , prevLeaf
   , previousHole''
   , nextHole''
   , goToTop
@@ -37,6 +39,12 @@ selectPrev = try selectPrev'
 selectLast :: Zipper a -> Zipper a
 selectLast = try selectLast'
 
+prevLeaf :: Zipper a -> Zipper a
+prevLeaf = try prevLeaf'
+
+nextLeaf :: Zipper a -> Zipper a
+nextLeaf = try nextLeaf'
+
 goUp :: Zipper a -> Zipper a
 goUp = try goUp'
 
@@ -54,6 +62,15 @@ selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 -- nextLeaf :: Zipper a -> Maybe Path
 -- nextLeaf z = searchStart z >>= searchDown <|> searchUp z
 
+nextLeaf' :: Zipper a -> Maybe (Zipper a)
+nextLeaf' = nextHole'' (\x -> case termUnderCursor x of
+                                Term _ [] -> True
+                                _ -> False)
+
+prevLeaf' :: Zipper a -> Maybe (Zipper a)
+prevLeaf' = previousHole'' (\x -> case termUnderCursor x of
+                                Term _ [] -> True
+                                _ -> False)
 
 nextHole'' :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
 nextHole'' f z = (searchStart z >>= searchDownRight f) <|> searchUpRight f z

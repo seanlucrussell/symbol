@@ -3,6 +3,7 @@ module Transformations
   ( possibleTerms
   , insertBefore
   , insertAfter
+  , updateSymbolTable
   , replaceWithTermAndSelectNext
   , replaceWithTerm) where
 
@@ -15,6 +16,8 @@ import SymbolData
 import SymbolMovements
 
 import qualified Data.Text as T
+import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Data.List
 import Data.Maybe
@@ -23,11 +26,24 @@ import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
 
+findValidAssignmentId :: Term Token -> Int
+findValidAssignmentId z = firstNumberNotInList (findAllIds z)
+
+findAllIds :: Term Token -> [Int]
+findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
+findAllIds (Term _ ts) = join (fmap findAllIds ts)
+
+firstNumberNotInList :: [Int] -> Int
+firstNumberNotInList l = f 0
+     where s = S.fromList l
+           f n = if S.member n s then f (n+1) else n
+
 insertBefore :: Zipper Token -> Zipper Token
-insertBefore (Term Program t, p:ps) = (Term Program (insertAt p blankAssignment t), p:ps)
+insertBefore (t'@(Term Program t), p:ps) = (Term Program (insertAt p blankAssignment t), p:ps)
+-- insertBefore (t'@(Term Program t), p:ps) = (Term Program (insertAt p (newAssignment (findValidAssignmentId t')) t), p:ps)
 
 insertAfter :: Zipper Token -> Zipper Token
-insertAfter (Term Program t, p:ps) = (Term Program (insertAt (p+1) blankAssignment t), p:ps)
+insertAfter (t'@(Term Program t), p:ps) = (Term Program (insertAt (p+1) blankAssignment t), p:ps)
 
 replaceWithTerm :: Term Token -> Zipper Token -> Zipper Token
 replaceWithTerm t = try (replaceWithTerm' t)
@@ -71,9 +87,9 @@ functionCalls z = concat [ fmap (app x) [1..5] | x <- searchForNamedVariables z]
 standardTerms :: [Term Token]
 standardTerms = [ blankTrue 
                 , blankFalse 
-                , blankFunction 
                 , blankConditional 
                 , blankApplication
+                , blankFunction
                 , blankFunctionType 
                 , blankBoolType 
                 , blankAssignment
@@ -91,9 +107,13 @@ termTypeChecks z t = case replaceWithTerm' t z of
 possibleTerms :: Zipper Token -> [Term Token]
 possibleTerms z = filter (termTypeChecks z) (allPossibleTerms z)
 
+updateSymbolTable :: Zipper Token -> T.Text -> SymbolTable -> Maybe SymbolTable
+updateSymbolTable z t s = case tokenUnderCursor z of
+        IdentifierTerm i -> Just (M.insert i t s)
+        _ -> Nothing
+
 -- language agnostic
 
 replaceWithTerm'' :: Term a -> [Int] -> Term a -> Term a
 replaceWithTerm'' t [] _ = t
 replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
-

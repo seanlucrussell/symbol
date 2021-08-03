@@ -24,28 +24,20 @@ import Control.Monad
 -- generic stuff for rendering zippers
 
 class Renderable a where
-  renderTerm' :: Maybe (a,Int) -> a -> [Doc Marking] -> Doc Marking
+  renderTerm' :: SymbolTable -> Maybe (a,Int) -> a -> [Doc Marking] -> Doc Marking
 
-renderZipper :: Renderable a => Zipper a -> Doc Marking
-renderZipper (t, p) = rz Nothing p t
+renderZipper :: Renderable a => SymbolTable -> Zipper a -> Doc Marking
+renderZipper s (t, p) = rz s Nothing p t
 
-rz :: Renderable a => Maybe (a,Int) -> Path -> Term a -> Doc Marking
-rz c [] t = annotate Highlight (renderTerm c t)
-rz c (p:ps) (Term x ts) = renderTerm' c x [if p' == p then rz (Just (x,p')) ps t' else renderTerm (Just (x,p')) t' | (t',p') <- zip ts [0..] ]
--- rz c (p:ps) (Term x ts) = renderTerm' c x (changeAtIndex p (rz ps (ts!!p)) ts)
+rz :: Renderable a => SymbolTable -> Maybe (a,Int) -> Path -> Term a -> Doc Marking
+rz s c [] t = annotate Highlight (renderTerm s c t)
+rz s c (p:ps) (Term x ts) = renderTerm' s c x [if p' == p then rz s (Just (x,p')) ps t' else renderTerm s (Just (x,p')) t' | (t',p') <- zip ts [0..] ]
 
 flatten :: Term a -> [a]
 flatten (Term x xs) = x:join (fmap flatten xs)
 
--- what we want
--- render :: Context -> Term a -> Term (Doc Marking)
--- renderZipper' :: Zipper (Doc Marking) -> Doc Marking
--- renderZipper' = applyAtCursor (annotate Highlight)
--- renderZipper :: Zipper a -> Doc Marking
--- renderZipper (t, p) = renderZipper' (render BaseContext t ???
-
-renderTerm :: Renderable a => Maybe (a,Int) -> Term a -> Doc Marking
-renderTerm c (Term t ts) = renderTerm' c t [renderTerm (Just (t,p)) t' | (p,t') <- zip [0..] ts]
+renderTerm :: Renderable a => SymbolTable -> Maybe (a,Int) -> Term a -> Doc Marking
+renderTerm s c (Term t ts) = renderTerm' s c t [renderTerm s (Just (t,p)) t' | (p,t') <- zip [0..] ts]
 
 -- below is generic plumbing to transform a Doc Marking into a Widget for Brick
 
@@ -95,6 +87,6 @@ renderDoc d = Brick.Widget Brick.Fixed Brick.Fixed
       Brick.render $ vBox $ renderStack $ renderTree $ treeForm $ layoutSmart
                     (LayoutOptions (AvailablePerLine (ctx^.Brick.availWidthL) 1.0)) d)
 
-zipperToWidget :: Renderable a => Zipper a -> Widget ()
-zipperToWidget = renderDoc . renderZipper
+zipperToWidget :: Renderable a => SymbolTable -> Zipper a -> Widget ()
+zipperToWidget s = renderDoc . renderZipper s
 

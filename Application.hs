@@ -19,7 +19,9 @@ import Utilities
 import SymbolData
 import SymbolMovements
 
+import qualified Data.Set as S
 import Data.Text
+import Data.Map
 import Graphics.Vty
 import Control.Monad.State
 
@@ -28,10 +30,23 @@ data UIState = AddingName String
              | NotReading
              | Exiting
 
-type AppStateData = (Zipper Token, UIState)
+type AppStateData = (SymbolTable, Zipper Token, UIState)
 type AppState = State AppStateData
 
 -- language specific transformations
+
+
+findValidAssignmentId :: Term Token -> Int
+findValidAssignmentId z = firstNumberNotInList (findAllIds z)
+
+findAllIds :: Term Token -> [Int]
+findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
+findAllIds (Term _ ts) = join (fmap findAllIds ts)
+
+firstNumberNotInList :: [Int] -> Int
+firstNumberNotInList l = f 0
+     where s = S.fromList l
+           f n = if S.member n s then f (n+1) else n
 
 exitReader :: (Zipper Token -> Zipper Token) -> AppState ()
 exitReader f = do changeUIState NotReading
@@ -39,7 +54,11 @@ exitReader f = do changeUIState NotReading
 
 setName :: String -> AppState ()
 setName s = do changeUIState (AddingName s)
-               applyToZipper (replaceWithTerm (blankIdentifier (pack s)))
+               z <- getZipper
+               if tokenUnderCursor z == UnknownTerm
+               then applyToZipper (replaceWithTerm (Term (IdentifierTerm (findValidAssignmentId (zipperToTerm z))) [])) 
+               else return ()
+               applyToSymbolTable (try (updateSymbolTable z (pack s)))
 
 addingNameHandler :: Key -> String -> AppState ()
 addingNameHandler (KChar ' ') " " = return ()
@@ -72,22 +91,30 @@ languageModifier _           = return ()
 -- language agnostic transformations
 
 changeUIState :: UIState -> AppState ()
-changeUIState u = do (z, _) <- get
-                     put (z, u)
+changeUIState u = do (s, z, _) <- get
+                     put (s, z, u)
 
 changeZipper :: Zipper Token -> AppState ()
 changeZipper = applyToZipper . const
 
+applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
+applyToSymbolTable f = do (s, z, u) <- get
+                          put (f s, z, u)
+
 applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
-applyToZipper f = do (z, u) <- get
-                     put (f z, u)
+applyToZipper f = do (s, z, u) <- get
+                     put (s, f z, u)
 
 getUIState :: AppState UIState
-getUIState = do (_, u) <- get
+getUIState = do (_, _, u) <- get
                 return u
 
+getSymbolTable :: AppState SymbolTable
+getSymbolTable = do (s, _, _) <- get
+                    return s
+
 getZipper :: AppState (Zipper Token)
-getZipper = do (z, _) <- get
+getZipper = do (_, z, _) <- get
                return z
 
 selectTerm :: [Term Token] -> Int -> AppState ()
@@ -115,7 +142,7 @@ notReadingHandler KEsc         = changeUIState Exiting
 notReadingHandler k            = languageModifier k
 
 initialState :: AppStateData
-initialState = (z, NotReading)
+initialState = (initialSymbolTable, initialZipper, NotReading)
 
 stateHandler :: Key -> AppState ()
 stateHandler e = do u <- getUIState

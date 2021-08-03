@@ -12,6 +12,7 @@ module SymbolData
     , BoolTypeTerm
     , AssignmentTerm
     , Program)
+  , SymbolTable
   , blankIdentifier
   , blankTrue
   , blankFalse
@@ -22,15 +23,18 @@ module SymbolData
   , blankFunctionType
   , blankBoolType
   , blankAssignment
-  , z) where
+  , newAssignment
+  , initialSymbolTable
+  , initialZipper) where
 
 import AST
 
+import Data.Map
 import qualified Data.Text as T
 
 {-# LANGUAGE XOverloadedStrings #-}
 
-data Token = IdentifierTerm T.Text
+data Token = IdentifierTerm Int
            | FunctionTerm
            | ApplicationTerm
            | TrueTerm
@@ -54,5 +58,13 @@ blankApplication = Term ApplicationTerm [blankUnknown, blankUnknown]
 blankBoolType = Term BoolTypeTerm []
 blankAssignment = Term AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
 
-z :: Zipper Token
-z = (Term Program [blankAssignment], [0])
+newAssignment i = Term AssignmentTerm [Term (IdentifierTerm i) [], blankUnknown, blankUnknown]
+
+
+type SymbolTable = Map Int T.Text
+
+initialSymbolTable :: SymbolTable
+initialSymbolTable = empty
+
+initialZipper :: Zipper Token
+initialZipper = (Term Program [blankAssignment], [0])

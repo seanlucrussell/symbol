@@ -8,6 +8,7 @@ module SymbolRenderer
 import SymbolData
 import Renderer
 
+import qualified Data.Map as M
 import Data.Text.Prettyprint.Doc
 
 -- things to remember from prettyprinter:
@@ -22,21 +23,23 @@ import Data.Text.Prettyprint.Doc
 -- for more
 
 instance Renderable Token where
-  renderTerm' _ (IdentifierTerm idText) [] = annotate Cyan (pretty idText)
-  renderTerm' _ FunctionTerm [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))
-  renderTerm' (Just (ApplicationTerm,0)) ApplicationTerm [a, b] = align (sep [a, b])
-  renderTerm' (Just (AssignmentTerm,2)) ApplicationTerm [a, b] = align (sep [a, b])
-  renderTerm' _ ApplicationTerm [a, b] = parens (align (sep [a, b]))
-  renderTerm' _ TrueTerm [] = annotate Red "True"
-  renderTerm' _ FalseTerm [] = annotate Red "False"
-  renderTerm' _ ConditionalTerm [a, b, c] = align (sep ["if" <+> a , "then" <+> b , "else" <+> c])
-  renderTerm' _ UnknownTerm [] = "_____"
-  renderTerm' (Just (FunctionTypeTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
-  renderTerm' (Just (AssignmentTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
-  renderTerm' (Just (FunctionTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
-  renderTerm' _ FunctionTypeTerm [a, b] = parens (align (sep [a, "->", b]))
-  renderTerm' _ BoolTypeTerm [] = annotate Yellow "Bool"
-  renderTerm' _ AssignmentTerm [a, b, c] = a <+> ":" <+> b <> line <> a <+> "=" <+> c
-  renderTerm' _ Program a = vsep (punctuate line a)
-  renderTerm' _ _ _ = "!!!RENDER ERROR!!!"
+  renderTerm' s _ (IdentifierTerm i) [] = annotate Cyan (case M.lookup i s of
+                                                                   Just i' -> pretty i'
+                                                                   Nothing -> pretty i)
+  renderTerm' _ _ FunctionTerm [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))
+  renderTerm' _ (Just (ApplicationTerm,0)) ApplicationTerm [a, b] = align (sep [a, b])
+  renderTerm' _ (Just (AssignmentTerm,2)) ApplicationTerm [a, b] = align (sep [a, b])
+  renderTerm' _ _ ApplicationTerm [a, b] = parens (align (sep [a, b]))
+  renderTerm' _ _ TrueTerm [] = annotate Red "True"
+  renderTerm' _ _ FalseTerm [] = annotate Red "False"
+  renderTerm' _ _ ConditionalTerm [a, b, c] = align (sep ["if" <+> a , "then" <+> b , "else" <+> c])
+  renderTerm' _ _ UnknownTerm [] = "_____"
+  renderTerm' _ (Just (FunctionTypeTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ (Just (AssignmentTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ (Just (FunctionTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ _ FunctionTypeTerm [a, b] = parens (align (sep [a, "->", b]))
+  renderTerm' _ _ BoolTypeTerm [] = annotate Yellow "Bool"
+  renderTerm' _ _ AssignmentTerm [a, b, c] = a <+> ":" <+> b <> line <> a <+> "=" <+> c
+  renderTerm' _ _ Program a = vsep (punctuate line a)
+  renderTerm' _ _ _ _ = "!!!RENDER ERROR!!!"
 

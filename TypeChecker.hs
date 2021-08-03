@@ -8,8 +8,6 @@ import Utilities
 
 import qualified Data.Map as M
 
-import qualified Data.Text as T
-
 {-# LANGUAGE XOverloadedStrings #-}
 
 chooseMoreSpecificType :: Type -> Type -> Type
@@ -20,7 +18,7 @@ data Type = BooleanType
           | FunctionType Type Type
           | UnknownType
           deriving (Eq,Show)
-data Trm = Ref T.Text
+data Trm = Ref Int
          | T
          | F
          | Fn Id Type Trm
@@ -30,7 +28,7 @@ data Trm = Ref T.Text
           deriving (Eq,Show)
 data Assign = Assign Id Type Trm
           deriving (Eq,Show)
-data Id = Id T.Text | UnknownId
+data Id = Id Int | UnknownId
           deriving (Eq,Show)
 data Prog = Prog [Assign]
           deriving (Eq,Show)
@@ -143,7 +141,7 @@ typeOf _ _ = Nothing
 validateZipper :: Zipper Token -> Bool
 validateZipper = validateProgram . zipperToTerm
 
-type Context = M.Map T.Text Type
+type Context = M.Map Int Type
 
 emptyContext :: Context
 emptyContext = M.empty

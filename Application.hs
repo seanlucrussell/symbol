@@ -8,7 +8,7 @@ module Application
   , UIState
     ( AddingName
     , SelectingTerm
-    , NotReading
+    , Home
     , Exiting)) where
 
 import AST
@@ -27,14 +27,26 @@ import Control.Monad.State
 
 data UIState = AddingName String
              | SelectingTerm [Term Token] Int
-             | NotReading
+             | Home
              | Exiting
 
 type AppStateData = (SymbolTable, Zipper Token, UIState)
 type AppState = State AppStateData
+type StateHandler = Key -> AppState ()
 
 -- language specific transformations
 
+-- semantics for string reader:
+--   some sort of parser to validate string (i.e. int parser, id parser,
+--   whatever-else parser).
+--   intermediate rendering. some strings may not parse alone, but do parse when
+--   all put together. e.g. the string '-' is not a valid integer, but '-1' is.
+--   revert changes when you hit enter if the parsed string ain't valid
+-- so maybe what we do is have some sort of different thing where we don't
+-- validate changes to the zipper until we commit all at once
+
+validIdentifier :: Term Token -> Term Token
+validIdentifier t = Term (IdentifierTerm (findValidAssignmentId t)) []
 
 findValidAssignmentId :: Term Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
@@ -48,31 +60,32 @@ firstNumberNotInList l = f 0
      where s = S.fromList l
            f n = if S.member n s then f (n+1) else n
 
-exitReader :: (Zipper Token -> Zipper Token) -> AppState ()
-exitReader f = do changeUIState NotReading
-                  applyToZipper f
+transitionHome :: (Zipper Token -> Zipper Token) -> AppState ()
+transitionHome f = do changeUIState Home
+                      applyToZipper f
 
 setName :: String -> AppState ()
 setName s = do changeUIState (AddingName s)
                z <- getZipper
                if tokenUnderCursor z == UnknownTerm
-               then applyToZipper (replaceWithTerm (Term (IdentifierTerm (findValidAssignmentId (zipperToTerm z))) [])) 
+               then applyToZipper (replaceWithTerm (validIdentifier (zipperToTerm z)))
                else return ()
-               applyToSymbolTable (try (updateSymbolTable z (pack s)))
+               z' <- getZipper
+               applyToSymbolTable (try (updateSymbolTable z' (pack s)))
 
-addingNameHandler :: Key -> String -> AppState ()
-addingNameHandler (KChar ' ') " " = return ()
-addingNameHandler (KChar k) s = setName (case s of " " -> [k]
-                                                   _   -> s ++ [k])
-addingNameHandler KEnter s = exitReader (case s of " " -> replaceWithTerm blankUnknown
-                                                   _   -> nextHole)
-addingNameHandler KBS s = case s of []  -> return ()
-                                    [_] -> setName " "
-                                    s'  -> setName (Prelude.init s')
-addingNameHandler _ _ = return ()
+addingNameHandler :: String -> StateHandler
+addingNameHandler " " (KChar ' ') = return ()
+addingNameHandler " " (KChar k)   = setName [k]
+addingNameHandler s   (KChar k)   = setName (s ++ [k])
+addingNameHandler " " KEnter      = return ()
+addingNameHandler s   KEnter      = transitionHome nextHole
+addingNameHandler []  KBS         = return ()
+addingNameHandler [_] KBS         = setName " "
+addingNameHandler s   KBS         = setName (Prelude.init s)
+addingNameHandler _   _           = return ()
 
 overIdentifier :: Zipper Token -> Bool
-overIdentifier z@(_, p) = case tokenUnderCursor (goUp z) of
+overIdentifier (t,p) = case tokenUnderCursor (goUp (t,p)) of
         FunctionTerm -> Prelude.last p == 0
         AssignmentTerm -> Prelude.last p == 0
         _ -> False
@@ -81,7 +94,7 @@ whenOverIdentifier :: AppState a -> AppState a -> AppState a
 whenOverIdentifier yes no = do z <- getZipper
                                if overIdentifier z then yes else no
 
-languageModifier :: Key -> AppState ()
+languageModifier :: StateHandler
 languageModifier (KChar 'r') = whenOverIdentifier (setName " ") (return ())
 languageModifier (KChar 'p') = whenOverIdentifier (return ()) (do {z <- getZipper; selectTerm (possibleTerms z) 0})
 languageModifier (KChar 'O') = applyToZipper insertBefore
@@ -93,9 +106,6 @@ languageModifier _           = return ()
 changeUIState :: UIState -> AppState ()
 changeUIState u = do (s, z, _) <- get
                      put (s, z, u)
-
-changeZipper :: Zipper Token -> AppState ()
-changeZipper = applyToZipper . const
 
 applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
 applyToSymbolTable f = do (s, z, u) <- get
@@ -120,34 +130,35 @@ getZipper = do (_, z, _) <- get
 selectTerm :: [Term Token] -> Int -> AppState ()
 selectTerm l n = changeUIState (SelectingTerm l (mod n (Prelude.length l)))
 
-selectingTermHandler :: Key -> [Term Token] -> Int -> AppState ()
-selectingTermHandler (KChar 'p') _ _ = changeUIState NotReading
-selectingTermHandler KEnter l n      = exitReader (nextHole . replaceWithTerm (l!!n))
-selectingTermHandler (KChar 'k') l n = selectTerm l (n-1)
-selectingTermHandler (KChar 'j') l n = selectTerm l (n+1)
-selectingTermHandler KUp l n         = selectTerm l (n-1)
-selectingTermHandler KDown l n       = selectTerm l (n+1)
+selectingTermHandler :: [Term Token] -> Int -> StateHandler
+selectingTermHandler _ _ (KChar 'p') = changeUIState Home
+selectingTermHandler l n KEnter      = transitionHome (nextHole . replaceWithTerm (l!!n))
+selectingTermHandler l n (KChar 'k') = selectTerm l (n-1)
+selectingTermHandler l n (KChar 'j') = selectTerm l (n+1)
+selectingTermHandler l n KUp         = selectTerm l (n-1)
+selectingTermHandler l n KDown       = selectTerm l (n+1)
 selectingTermHandler _ _ _           = return ()
 
-notReadingHandler :: Key -> AppState ()
-notReadingHandler (KChar 'n')  = applyToZipper nextHole
-notReadingHandler (KChar 'N')  = applyToZipper previousHole
-notReadingHandler (KChar '\t') = applyToZipper nextLeaf
-notReadingHandler KBackTab     = applyToZipper prevLeaf
-notReadingHandler (KChar 'j')  = applyToZipper selectFirst
-notReadingHandler (KChar 'l')  = applyToZipper selectNext
-notReadingHandler (KChar 'h')  = applyToZipper selectPrev
-notReadingHandler (KChar 'k')  = applyToZipper goUp
-notReadingHandler KEsc         = changeUIState Exiting
-notReadingHandler k            = languageModifier k
+homeHandler :: StateHandler
+homeHandler (KChar 'n')  = applyToZipper nextHole
+homeHandler (KChar 'N')  = applyToZipper previousHole
+homeHandler (KChar '\t') = applyToZipper nextLeaf
+homeHandler KBackTab     = applyToZipper prevLeaf
+homeHandler (KChar 'j')  = applyToZipper selectFirst
+homeHandler (KChar 'l')  = applyToZipper selectNext
+homeHandler (KChar 'h')  = applyToZipper selectPrev
+homeHandler (KChar 'k')  = applyToZipper goUp
+homeHandler KEsc         = changeUIState Exiting
+homeHandler k            = languageModifier k
 
 initialState :: AppStateData
-initialState = (initialSymbolTable, initialZipper, NotReading)
+initialState = (initialSymbolTable, initialZipper, Home)
 
-stateHandler :: Key -> AppState ()
-stateHandler e = do u <- getUIState
-                    case u of AddingName    s   -> addingNameHandler e s
-                              SelectingTerm l n -> selectingTermHandler e l n
-                              NotReading        -> notReadingHandler e
+
+stateHandler :: StateHandler
+stateHandler k = do u <- getUIState
+                    case u of AddingName    s   -> addingNameHandler s k
+                              SelectingTerm l n -> selectingTermHandler l n k
+                              Home              -> homeHandler k
                               Exiting           -> return ()
 

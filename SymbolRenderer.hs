@@ -27,16 +27,16 @@ instance Renderable Token where
                                                                    Just i' -> pretty i'
                                                                    Nothing -> pretty i)
   renderTerm' _ _ FunctionTerm [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))
-  renderTerm' _ (Just (ApplicationTerm,0)) ApplicationTerm [a, b] = align (sep [a, b])
-  renderTerm' _ (Just (AssignmentTerm,2)) ApplicationTerm [a, b] = align (sep [a, b])
+  renderTerm' _ (RenderContext ApplicationTerm 0) ApplicationTerm [a, b] = align (sep [a, b])
+  renderTerm' _ (RenderContext AssignmentTerm 2) ApplicationTerm [a, b] = align (sep [a, b])
   renderTerm' _ _ ApplicationTerm [a, b] = parens (align (sep [a, b]))
   renderTerm' _ _ TrueTerm [] = annotate Red "True"
   renderTerm' _ _ FalseTerm [] = annotate Red "False"
   renderTerm' _ _ ConditionalTerm [a, b, c] = align (sep ["if" <+> a , "then" <+> b , "else" <+> c])
   renderTerm' _ _ UnknownTerm [] = "_____"
-  renderTerm' _ (Just (FunctionTypeTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
-  renderTerm' _ (Just (AssignmentTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
-  renderTerm' _ (Just (FunctionTerm,1)) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ (RenderContext FunctionTypeTerm 1) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ (RenderContext AssignmentTerm 1) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
+  renderTerm' _ (RenderContext FunctionTerm 1) FunctionTypeTerm [a, b] = align (sep [a, "->", b])
   renderTerm' _ _ FunctionTypeTerm [a, b] = parens (align (sep [a, "->", b]))
   renderTerm' _ _ BoolTypeTerm [] = annotate Yellow "Bool"
   renderTerm' _ _ AssignmentTerm [a, b, c] = a <+> ":" <+> b <> line <> a <+> "=" <+> c

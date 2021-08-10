@@ -57,7 +57,7 @@ popup s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
                 Just i  -> show (i + 1)
         total = show (Vec.length (l^.(L.listElementsL)))
         listDrawElement _ a = C.hCenter $ hLimit 35 $ vLimit 1 $
-                                str "    " <+> (renderDoc (renderTerm s Nothing a)) <+> fill ' '
+                                str "    " <+> (renderDoc (renderTerm s NoRenderContext a)) <+> fill ' '
         box = hLimit 35 $
               vLimit 15 $
               L.renderList listDrawElement True l

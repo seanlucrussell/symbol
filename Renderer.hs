@@ -4,6 +4,7 @@ module Renderer
   , renderDoc
   , renderTerm
   , Renderable (renderTerm')
+  , RenderContext (RenderContext, NoRenderContext)
   , Marking (Highlight, Yellow, White, Green, Blue, Magenta, Cyan, Red)
   ) where
 
@@ -23,21 +24,24 @@ import Control.Monad
 
 -- generic stuff for rendering zippers
 
+data RenderContext a = RenderContext a Int
+                     | NoRenderContext
+
 class Renderable a where
-  renderTerm' :: SymbolTable -> Maybe (a,Int) -> a -> [Doc Marking] -> Doc Marking
+  renderTerm' :: SymbolTable -> RenderContext a -> a -> [Doc Marking] -> Doc Marking
 
 renderZipper :: Renderable a => SymbolTable -> Zipper a -> Doc Marking
-renderZipper s (t, p) = rz s Nothing p t
+renderZipper s (t, p) = rz s NoRenderContext p t
 
-rz :: Renderable a => SymbolTable -> Maybe (a,Int) -> Path -> Term a -> Doc Marking
+rz :: Renderable a => SymbolTable -> RenderContext a -> Path -> Term a -> Doc Marking
 rz s c [] t = annotate Highlight (renderTerm s c t)
-rz s c (p:ps) (Term x ts) = renderTerm' s c x [if p' == p then rz s (Just (x,p')) ps t' else renderTerm s (Just (x,p')) t' | (t',p') <- zip ts [0..] ]
+rz s c (p:ps) (Term x ts) = renderTerm' s c x [if p' == p then rz s (RenderContext x p') ps t' else renderTerm s (RenderContext x p') t' | (t',p') <- zip ts [0..] ]
 
 flatten :: Term a -> [a]
 flatten (Term x xs) = x:join (fmap flatten xs)
 
-renderTerm :: Renderable a => SymbolTable -> Maybe (a,Int) -> Term a -> Doc Marking
-renderTerm s c (Term t ts) = renderTerm' s c t [renderTerm s (Just (t,p)) t' | (p,t') <- zip [0..] ts]
+renderTerm :: Renderable a => SymbolTable -> RenderContext a -> Term a -> Doc Marking
+renderTerm s c (Term t ts) = renderTerm' s c t [renderTerm s (RenderContext t p) t' | (p,t') <- zip [0..] ts]
 
 -- below is generic plumbing to transform a Doc Marking into a Widget for Brick
 

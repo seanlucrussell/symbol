@@ -1,9 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SymbolRenderer
-  ( zipperToWidget
-  , renderDoc
-  , renderTerm
-  ) where
+module SymbolRenderer where
 
 import SymbolData
 import Renderer
@@ -24,8 +20,9 @@ import Data.Text.Prettyprint.Doc
 
 instance Renderable Token where
   renderTerm' s _ (IdentifierTerm i) [] = annotate Cyan (case M.lookup i s of
-                                                                   Just i' -> pretty i'
-                                                                   Nothing -> pretty i)
+                       Just i' -> pretty i'
+                       Nothing -> error ("identifier lookup failed in renderer! identifier number was "
+                                         ++ show i))
   renderTerm' _ _ FunctionTerm [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))
   renderTerm' _ (RenderContext ApplicationTerm 0) ApplicationTerm [a, b] = align (sep [a, b])
   renderTerm' _ (RenderContext AssignmentTerm 2) ApplicationTerm [a, b] = align (sep [a, b])
@@ -41,5 +38,5 @@ instance Renderable Token where
   renderTerm' _ _ BoolTypeTerm [] = annotate Yellow "Bool"
   renderTerm' _ _ AssignmentTerm [a, b, c] = a <+> ":" <+> b <> line <> a <+> "=" <+> c
   renderTerm' _ _ Program a = vsep (punctuate line a)
-  renderTerm' _ _ _ _ = "!!!RENDER ERROR!!!"
+  renderTerm' _ _ t u = error ("renderer fell through to unmatched case. term is: " ++ show t ++ show u)
 

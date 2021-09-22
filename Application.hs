@@ -25,6 +25,28 @@ import Data.Map
 import Graphics.Vty
 import Control.Monad.State
 
+-- cool idea: certain input events don't fully specify a new, valid state. e.g.
+-- naming a variable. you could have invalid variable names while editing. so
+-- what to do? take a page from the book on databases: transactions!
+--
+-- most state changes will be like this: given some input and a state, calculate
+-- the next state. when the next state is a valid state, then great! but what do
+-- we do in the case we don't have a valid state?
+--
+-- first, keep a complete copy of the current state that we can fall back into.
+-- then, do your changes without verifying the correctness of the output.
+-- finally, commit your changes. if the changes worked, then great! we exit the
+-- transaction. if not, oh well. we revert to the previous state
+--
+-- so what do we need? some functions:
+--
+-- validate :: AppStateData -> Boolean
+-- startTransaction :: AppState ()
+-- commit :: AppState ()
+--
+-- and an extra element to the UIState data type
+-- Transacting :: AppStateData -> UIState
+
 data UIState = AddingName String
              | SelectingTerm [Term Token] Int
              | Home

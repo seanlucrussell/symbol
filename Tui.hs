@@ -3,7 +3,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Main where
 
-
 import AST
 import SymbolData
 import SymbolRenderer
@@ -11,6 +10,7 @@ import Movements
 import Renderer
 import Transformations
 import Application
+import BrickRenderer
 
 import Data.Text
 import Graphics.Vty
@@ -27,8 +27,13 @@ import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core (hLimit, str, vBox, vLimit, (<+>))
 import qualified Brick.Widgets.List as L
 import qualified Data.Vector as Vec
-
 import qualified Control.Monad.State as S
+
+-- how we gonna do cool positional stuff:
+-- have a function
+-- Term -> Map (Int,Int) Path 
+-- (which would have to be renderer dependent) that produces a map mapping xy
+-- coordinates on the screen to the path to the term at those coordinates
 
 appEvent :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
 appEvent d (VtyEvent (EvKey e [] )) = case nextState of 

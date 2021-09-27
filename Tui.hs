@@ -37,13 +37,13 @@ import qualified Control.Monad.State as S
 
 appEvent :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
 appEvent d (VtyEvent (EvKey e [] )) = case nextState of 
-                     (_, _, Exiting) -> halt d
+                     (_, _, Exiting, _) -> halt d
                      _ -> continue nextState
   where nextState = S.execState (stateHandler e) d
 appEvent d _ = continue d
 
 drawUI :: AppStateData -> [Widget ()]
-drawUI (s, z, u) = (case u of
+drawUI (s, z, u, _) = (case u of
      SelectingTerm l n -> [popup s (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s z]
 

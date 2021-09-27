@@ -15,6 +15,8 @@ import AST
 import Movements
 import Transformations
 import Utilities
+import Renderer
+import SymbolRenderer
 
 import SymbolData
 import SymbolMovements
@@ -51,8 +53,12 @@ data UIState = AddingName String
              | SelectingTerm [Term Token] Int
              | Home
              | Exiting
+             -- random idea: UIState is data type that really is just 
+             --   Key -> AppState ()
+             -- may be good for extensibility. don't have to change existing
+             -- functions when adding new UIState thing
 
-type AppStateData = (SymbolTable, Zipper Token, UIState)
+type AppStateData = (SymbolTable, Zipper Token, UIState, Position)
 type AppState = State AppStateData
 type StateHandler = Key -> AppState ()
 
@@ -66,6 +72,16 @@ type StateHandler = Key -> AppState ()
 --   revert changes when you hit enter if the parsed string ain't valid
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
+--
+-- should be easy to implement too. split AppStateData into 
+--   (SymbolTable, Zipper Token, Position)
+-- and
+--   UIState
+-- then add a new thing that is [AppStateData] for all the commited changes.
+-- Then add new functions
+--   commit :: AppState ()
+--   revert :: AppState ()
+-- where you respectively push and pop the current app data to the change stack
 
 validIdentifier :: Term Token -> Term Token
 validIdentifier t = Term (IdentifierTerm (findValidAssignmentId t)) []
@@ -126,28 +142,96 @@ languageModifier _           = return ()
 -- language agnostic transformations
 
 changeUIState :: UIState -> AppState ()
-changeUIState u = do (s, z, _) <- get
-                     put (s, z, u)
+changeUIState u = do (s, z, _, p) <- get
+                     put (s, z, u, p)
 
 applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
-applyToSymbolTable f = do (s, z, u) <- get
-                          put (f s, z, u)
+applyToSymbolTable f = do (s, z, u, p) <- get
+                          put (f s, z, u, p)
 
 applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
-applyToZipper f = do (s, z, u) <- get
-                     put (s, f z, u)
+applyToZipper f = do (s, z, u, p) <- get
+                     put (s, f z, u, p)
+                     updatePosition
+
+applyToPosition :: (Position -> Position) -> AppState ()
+applyToPosition f = do (s, z, u, p) <- get
+                       put (s, z, u, f p)
+                       updatePath
 
 getUIState :: AppState UIState
-getUIState = do (_, _, u) <- get
+getUIState = do (_, _, u, _) <- get
                 return u
 
 getSymbolTable :: AppState SymbolTable
-getSymbolTable = do (s, _, _) <- get
+getSymbolTable = do (s, _, _, _) <- get
                     return s
 
 getZipper :: AppState (Zipper Token)
-getZipper = do (_, z, _) <- get
+getZipper = do (_, z, _, _) <- get
                return z
+
+getPosition :: AppState Position
+getPosition = do (_, _, _, p) <- get
+                 return p
+
+-- needs more thought, but heres some improvements:
+--  1. should always result either in a new path or no change whatsoever
+--  2. left/right movement should stay on the same level or something. idk
+--  3. up/down movement should keep cursor in same location until we do
+--     right/left movement, except maybe see next point
+--  4. if next/previous line is shorter and at the end of a line, up/down
+--     movement should move to end of line (tho cursor should be in same
+--     location. in other words, select the nearest path on that line). same
+--     goes for short lines
+--  might need a bounding box to accomadate some of these things. e.g. min/max
+--  search space so when we search down/up we know when to stop
+selectRight :: Position -> Position
+selectRight (x,y) = (x+1,y)
+selectLeft :: Position -> Position
+selectLeft (x,y) = (x-1,y)
+selectDown :: Position -> Position
+selectDown (x,y) = (x,y+1)
+selectUp :: Position -> Position
+selectUp (x,y) = (x,y-1)
+
+getPathMap :: AppState PathMap
+getPathMap = do s <- getSymbolTable
+                (t, _) <- getZipper
+                -- AAHHH WHAT IS THIS??? pretending like the screen is always
+                -- 200 characters wide is dumb and wrong
+                return (termToPathMap s 200 t)
+
+positionFromPath :: PathMap -> Path -> Position
+positionFromPath pathMap path = leastInList positions
+        where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
+              leastInList [] = error "Path not in PathMap. How did that happen?"
+              leastInList (l:[]) = l
+              leastInList (l:ls) = lowest l (leastInList ls)
+              positions = [position | (position,p) <- toList pathMap, p == path]
+
+-- convert path map to list of tuples
+-- filter list to things that match path
+-- sort so lowest y values are first, lowest x values second
+-- take first thing in that list!
+
+updatePosition :: AppState ()
+updatePosition = do pathMap <- getPathMap
+                    (_, path) <- getZipper
+                    applyToPosition (const (positionFromPath pathMap path))
+
+
+updatePath :: AppState ()
+updatePath = do (s, (t, _), u, p) <- get
+                pMap <- pathFromPosition
+                case pMap of
+                       Just p' -> put (s, (t, p'), u, p)
+                       Nothing -> return ()
+
+pathFromPosition :: AppState (Maybe Path)
+pathFromPosition = do pathMap <- getPathMap
+                      position <- getPosition
+                      return (Data.Map.lookup position pathMap)
 
 selectTerm :: [Term Token] -> Int -> AppState ()
 selectTerm l n = changeUIState (SelectingTerm l (mod n (Prelude.length l)))
@@ -171,10 +255,14 @@ homeHandler (KChar 'l')  = applyToZipper selectNext
 homeHandler (KChar 'h')  = applyToZipper selectPrev
 homeHandler (KChar 'k')  = applyToZipper goUp
 homeHandler KEsc         = changeUIState Exiting
+homeHandler KUp          = applyToPosition selectUp
+homeHandler KDown        = applyToPosition selectDown
+homeHandler KLeft        = applyToPosition selectLeft
+homeHandler KRight       = applyToPosition selectRight
 homeHandler k            = languageModifier k
 
 initialState :: AppStateData
-initialState = (initialSymbolTable, initialZipper, Home)
+initialState = (initialSymbolTable, initialZipper, Home, (0,0))
 
 
 stateHandler :: StateHandler

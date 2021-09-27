@@ -9,6 +9,8 @@ module Renderer
   , termToPathMap
   , treeToStack
   , renderZipper
+  , Position
+  , PathMap
   ) where
 
 import AST
@@ -50,8 +52,8 @@ generatePathMap (p:ps) (x,y) (SAnnPush _ s)             = generatePathMap (p:ps)
 generatePathMap (p:ps) (x,y) (SAnnPop s)                = generatePathMap ps (x,y) s
 generatePathMap _      _     _                          = error "unmatched pattern in generatePathMap"
 
-termToPathMap :: Renderable a => SymbolTable -> RenderContext a -> Int -> Term a -> PathMap
-termToPathMap s r n t = generatePathMap [] (0,0) (layout n (renderTerm s r t))
+termToPathMap :: Renderable a => SymbolTable -> Int -> Term a -> PathMap
+termToPathMap s n t = generatePathMap [] (0,0) (layout n (renderTerm s NoRenderContext t))
 
 highlightAtPath :: Path -> Doc Marking -> Doc Marking
 highlightAtPath p = reAnnotate (\q -> case q of 

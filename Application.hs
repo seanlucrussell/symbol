@@ -3,13 +3,9 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Application
   ( stateHandler
-  , AppStateData
+  , StateData (StateData)
   , initialState
-  , UIState
-    ( AddingName
-    , SelectingTerm
-    , Home
-    , Exiting)) where
+  ) where
 
 import AST
 import Movements
@@ -21,6 +17,7 @@ import SymbolRenderer
 import SymbolData
 import SymbolMovements
 
+import Data.Maybe
 import qualified Data.Set as S
 import Data.Text
 import Data.Map
@@ -42,25 +39,30 @@ import Control.Monad.State
 --
 -- so what do we need? some functions:
 --
--- validate :: AppStateData -> Boolean
+-- validate :: StateData -> Boolean
 -- startTransaction :: AppState ()
 -- commit :: AppState ()
 --
 -- and an extra element to the UIState data type
--- Transacting :: AppStateData -> UIState
+-- Transacting :: StateData -> UIState
 
-data UIState = AddingName String
-             | SelectingTerm [Term Token] Int
-             | Home
-             | Exiting
-             -- random idea: UIState is data type that really is just 
-             --   Key -> AppState ()
-             -- may be good for extensibility. don't have to change existing
-             -- functions when adding new UIState thing
-
-type AppStateData = (SymbolTable, Zipper Token, UIState, Position)
-type AppState = State AppStateData
-type StateHandler = Key -> AppState ()
+-- ok so state data should maybe accept a Rendering callback or something like
+-- that? something like
+--   render :: StateData -> ExtraInfo -> a
+-- ? or maybe we need to be clearer about what info there is that could be
+-- rendered. e.g. have a diff data structure for it:
+--   S = S SymbolTable (Zipper Token) Position (Maybe ([Term Token], Int))
+-- or even
+--   MainWindowData = MainWindowData SymbolTable (Zipper Token) Position
+--   SelectionPopupData = SelectionPopupData [Term Token] Int
+--   AppData = MainWindow MainWindowData | Popup SelectionPopupData MainWindowData
+-- so then what am I really saving by having this new model for managing app
+-- transformations? It does seem slightly simpler, but I end up replicating bits
+-- of it anyhow to communicate w/ the renderer
+data StateData = StateData SymbolTable (Zipper Token) (Maybe StateHandler) Position (Maybe ([Term Token], Int))
+type AppState = State StateData
+type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
+type StateHandler = AppInput -> AppState ()
 
 -- language specific transformations
 
@@ -73,11 +75,11 @@ type StateHandler = Key -> AppState ()
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
 --
--- should be easy to implement too. split AppStateData into 
+-- should be easy to implement too. split StateData into 
 --   (SymbolTable, Zipper Token, Position)
 -- and
 --   UIState
--- then add a new thing that is [AppStateData] for all the commited changes.
+-- then add a new thing that is [StateData] for all the commited changes.
 -- Then add new functions
 --   commit :: AppState ()
 --   revert :: AppState ()
@@ -99,11 +101,11 @@ firstNumberNotInList l = f 0
            f n = if S.member n s then f (n+1) else n
 
 transitionHome :: (Zipper Token -> Zipper Token) -> AppState ()
-transitionHome f = do changeUIState Home
+transitionHome f = do changeUIState homeHandler
                       applyToZipper f
 
 setName :: String -> AppState ()
-setName s = do changeUIState (AddingName s)
+setName s = do changeUIState (addingNameHandler s)
                z <- getZipper
                if tokenUnderCursor z == UnknownTerm
                then applyToZipper (replaceWithTerm (validIdentifier (zipperToTerm z)))
@@ -112,15 +114,15 @@ setName s = do changeUIState (AddingName s)
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
 
 addingNameHandler :: String -> StateHandler
-addingNameHandler " " (KChar ' ') = return ()
-addingNameHandler " " (KChar k)   = setName [k]
-addingNameHandler s   (KChar k)   = setName (s ++ [k])
-addingNameHandler " " KEnter      = return ()
-addingNameHandler s   KEnter      = transitionHome nextHole
-addingNameHandler []  KBS         = return ()
-addingNameHandler [_] KBS         = setName " "
-addingNameHandler s   KBS         = setName (Prelude.init s)
-addingNameHandler _   _           = return ()
+addingNameHandler " " ((KChar ' '), _) = return ()
+addingNameHandler " " ((KChar k)  , _) = setName [k]
+addingNameHandler s   ((KChar k)  , _) = setName (s ++ [k])
+addingNameHandler " " (KEnter     , _) = return ()
+addingNameHandler s   (KEnter     , _) = transitionHome nextHole
+addingNameHandler []  (KBS        , _) = return ()
+addingNameHandler [_] (KBS        , _) = setName " "
+addingNameHandler s   (KBS        , _) = setName (Prelude.init s)
+addingNameHandler _   (_          , _) = return ()
 
 overIdentifier :: Zipper Token -> Bool
 overIdentifier (t,p) = case tokenUnderCursor (goUp (t,p)) of
@@ -133,46 +135,67 @@ whenOverIdentifier yes no = do z <- getZipper
                                if overIdentifier z then yes else no
 
 languageModifier :: StateHandler
-languageModifier (KChar 'r') = whenOverIdentifier (setName " ") (return ())
-languageModifier (KChar 'p') = whenOverIdentifier (return ()) (do {z <- getZipper; selectTerm (possibleTerms z) 0})
-languageModifier (KChar 'O') = applyToZipper insertBefore
-languageModifier (KChar 'o') = applyToZipper insertAfter
-languageModifier _           = return ()
+languageModifier ((KChar 'r'), _) = whenOverIdentifier (setName " ") (return ())
+languageModifier ((KChar 'p'), _) = whenOverIdentifier (return ()) (do z <- getZipper
+                                                                       selectTerm (possibleTerms z) 0)
+languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
+languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
+languageModifier (_          , _) = return ()
 
 -- language agnostic transformations
 
-changeUIState :: UIState -> AppState ()
-changeUIState u = do (s, z, _, p) <- get
-                     put (s, z, u, p)
+changeUIState :: StateHandler -> AppState ()
+changeUIState u = do StateData s z _ p x <- get
+                     put (StateData s z (Just u) p x)
+
+terminate :: AppState ()
+terminate = do StateData s z _ p x <- get
+               put (StateData s z Nothing p x)
 
 applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
-applyToSymbolTable f = do (s, z, u, p) <- get
-                          put (f s, z, u, p)
+applyToSymbolTable f = do StateData s z u p x <- get
+                          put (StateData (f s) z u p x)
 
 applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
-applyToZipper f = do (s, z, u, p) <- get
-                     put (s, f z, u, p)
-                     updatePosition
+applyToZipper f = do StateData s z u p x <- get
+                     put (StateData s (f z) u p x)
+                     -- updatePosition
+                     -- ^^^^^^^^^^^^^^ this is causing errors right now. due to
+                     -- some bits of the program that make incremental changes
+                     -- to the zipper, where intermediate states are invalid
+                     -- (e.g. not specifying things in the symbol table) but the
+                     -- transformation as a whole is kosher. need a better model
+                     -- to deal w/ that
 
 applyToPosition :: (Position -> Position) -> AppState ()
-applyToPosition f = do (s, z, u, p) <- get
-                       put (s, z, u, f p)
-                       updatePath
+applyToPosition f = do StateData s z u p x <- get
+                       put (StateData s z u (f p) x)
+                       -- updatePath
+                       -- ^^^^^^^^^^ this is causing errors right now. due to
+                       -- some bits of the program that make incremental changes
+                       -- to the zipper, where intermediate states are invalid
+                       -- (e.g. not specifying things in the symbol table) but
+                       -- the transformation as a whole is kosher. need a better
+                       -- model to deal w/ that
 
-getUIState :: AppState UIState
-getUIState = do (_, _, u, _) <- get
+setPopup :: Maybe ([Term Token], Int) -> AppState ()
+setPopup x = do StateData s z u p _ <- get
+                put (StateData s z u p x)
+
+getUIState :: AppState (Maybe StateHandler)
+getUIState = do StateData _ _ u _ _ <- get
                 return u
 
 getSymbolTable :: AppState SymbolTable
-getSymbolTable = do (s, _, _, _) <- get
+getSymbolTable = do StateData s _ _ _ _ <- get
                     return s
 
 getZipper :: AppState (Zipper Token)
-getZipper = do (_, z, _, _) <- get
+getZipper = do StateData _ z _ _ _ <- get
                return z
 
 getPosition :: AppState Position
-getPosition = do (_, _, _, p) <- get
+getPosition = do StateData _ _ _ p _ <- get
                  return p
 
 -- needs more thought, but heres some improvements:
@@ -195,12 +218,12 @@ selectDown (x,y) = (x,y+1)
 selectUp :: Position -> Position
 selectUp (x,y) = (x,y-1)
 
-getPathMap :: AppState PathMap
-getPathMap = do s <- getSymbolTable
-                (t, _) <- getZipper
-                -- AAHHH WHAT IS THIS??? pretending like the screen is always
-                -- 200 characters wide is dumb and wrong
-                return (termToPathMap s 200 t)
+getPathMap :: Int -> AppState PathMap
+getPathMap n = do s <- getSymbolTable
+                  (t, _) <- getZipper
+                  -- AAHHH WHAT IS THIS??? pretending like the screen is always
+                  -- 200 characters wide is dumb and wrong
+                  return (termToPathMap s n t)
 
 positionFromPath :: PathMap -> Path -> Position
 positionFromPath pathMap path = leastInList positions
@@ -210,65 +233,64 @@ positionFromPath pathMap path = leastInList positions
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = [position | (position,p) <- toList pathMap, p == path]
 
--- convert path map to list of tuples
--- filter list to things that match path
--- sort so lowest y values are first, lowest x values second
--- take first thing in that list!
-
-updatePosition :: AppState ()
-updatePosition = do pathMap <- getPathMap
-                    (_, path) <- getZipper
-                    applyToPosition (const (positionFromPath pathMap path))
+updatePosition :: Int -> AppState ()
+updatePosition n = do pathMap <- getPathMap n
+                      (_, path) <- getZipper
+                      applyToPosition (const (positionFromPath pathMap path))
 
 
-updatePath :: AppState ()
-updatePath = do (s, (t, _), u, p) <- get
-                pMap <- pathFromPosition
-                case pMap of
-                       Just p' -> put (s, (t, p'), u, p)
-                       Nothing -> return ()
+updatePath :: Int -> AppState ()
+updatePath n = do StateData s (t, _) u p x <- get
+                  pMap <- pathFromPosition n
+                  case pMap of
+                         Just p' -> put (StateData s (t, p') u p x)
+                         Nothing -> return ()
 
-pathFromPosition :: AppState (Maybe Path)
-pathFromPosition = do pathMap <- getPathMap
-                      position <- getPosition
-                      return (Data.Map.lookup position pathMap)
+pathFromPosition :: Int -> AppState (Maybe Path)
+pathFromPosition n = do pathMap <- getPathMap n
+                        position <- getPosition
+                        return (Data.Map.lookup position pathMap)
 
 selectTerm :: [Term Token] -> Int -> AppState ()
-selectTerm l n = changeUIState (SelectingTerm l (mod n (Prelude.length l)))
+selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')
+        where n' = mod n (Prelude.length l)
+
+exitPopup :: AppState ()
+exitPopup = setPopup Nothing >> changeUIState homeHandler
 
 selectingTermHandler :: [Term Token] -> Int -> StateHandler
-selectingTermHandler _ _ (KChar 'p') = changeUIState Home
-selectingTermHandler l n KEnter      = transitionHome (nextHole . replaceWithTerm (l!!n))
-selectingTermHandler l n (KChar 'k') = selectTerm l (n-1)
-selectingTermHandler l n (KChar 'j') = selectTerm l (n+1)
-selectingTermHandler l n KUp         = selectTerm l (n-1)
-selectingTermHandler l n KDown       = selectTerm l (n+1)
-selectingTermHandler _ _ _           = return ()
+selectingTermHandler _ _ ((KChar 'p'), _) = exitPopup
+selectingTermHandler l n (KEnter     , _) = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
+selectingTermHandler l n ((KChar 'k'), _) = selectTerm l (n-1)
+selectingTermHandler l n ((KChar 'j'), _) = selectTerm l (n+1)
+selectingTermHandler l n (KUp        , _) = selectTerm l (n-1)
+selectingTermHandler l n (KDown      , _) = selectTerm l (n+1)
+selectingTermHandler _ _ (_          , _) = return ()
 
 homeHandler :: StateHandler
-homeHandler (KChar 'n')  = applyToZipper nextHole
-homeHandler (KChar 'N')  = applyToZipper previousHole
-homeHandler (KChar '\t') = applyToZipper nextLeaf
-homeHandler KBackTab     = applyToZipper prevLeaf
-homeHandler (KChar 'j')  = applyToZipper selectFirst
-homeHandler (KChar 'l')  = applyToZipper selectNext
-homeHandler (KChar 'h')  = applyToZipper selectPrev
-homeHandler (KChar 'k')  = applyToZipper goUp
-homeHandler KEsc         = changeUIState Exiting
-homeHandler KUp          = applyToPosition selectUp
-homeHandler KDown        = applyToPosition selectDown
-homeHandler KLeft        = applyToPosition selectLeft
-homeHandler KRight       = applyToPosition selectRight
-homeHandler k            = languageModifier k
+homeHandler ((KChar 'n') , _) = applyToZipper nextHole
+homeHandler ((KChar 'N') , _) = applyToZipper previousHole
+homeHandler ((KChar '\t'), _) = applyToZipper nextLeaf
+homeHandler (KBackTab    , _) = applyToZipper prevLeaf
+homeHandler ((KChar 'j') , _) = applyToZipper selectFirst
+homeHandler ((KChar 'l') , _) = applyToZipper selectNext
+homeHandler ((KChar 'h') , _) = applyToZipper selectPrev
+homeHandler ((KChar 'k') , _) = applyToZipper goUp
+homeHandler (KEsc        , _) = terminate
+homeHandler (KUp         , _) = applyToPosition selectUp
+homeHandler (KDown       , _) = applyToPosition selectDown
+homeHandler (KLeft       , _) = applyToPosition selectLeft
+homeHandler (KRight      , _) = applyToPosition selectRight
+homeHandler (k           , n) = languageModifier (k, n)
 
-initialState :: AppStateData
-initialState = (initialSymbolTable, initialZipper, Home, (0,0))
+initialState :: StateData
+initialState = StateData initialSymbolTable initialZipper (Just homeHandler) (0,0) Nothing
 
+appHasTerminated :: Maybe StateHandler -> Bool
+appHasTerminated = isNothing
 
 stateHandler :: StateHandler
 stateHandler k = do u <- getUIState
-                    case u of AddingName    s   -> addingNameHandler s k
-                              SelectingTerm l n -> selectingTermHandler l n k
-                              Home              -> homeHandler k
-                              Exiting           -> return ()
-
+                    case u of
+                        Just u' -> u' k
+                        Nothing -> return ()

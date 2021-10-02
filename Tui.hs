@@ -18,15 +18,10 @@ import Brick
 
 import Text.Read
 
-import Lens.Micro ((^.))
-
 import qualified Brick.AttrMap as A
 import Brick.Types (Widget)
-import qualified Brick.Widgets.Border as B
-import qualified Brick.Widgets.Center as C
-import Brick.Widgets.Core (hLimit, str, vBox, vLimit, (<+>))
+import qualified Brick.Main
 import qualified Brick.Widgets.List as L
-import qualified Data.Vector as Vec
 import qualified Control.Monad.State as S
 
 -- how we gonna do cool positional stuff:
@@ -35,37 +30,17 @@ import qualified Control.Monad.State as S
 -- (which would have to be renderer dependent) that produces a map mapping xy
 -- coordinates on the screen to the path to the term at those coordinates
 
-appEvent :: AppStateData -> BrickEvent n e -> EventM () (Next AppStateData)
-appEvent d (VtyEvent (EvKey e [] )) = case nextState of 
-                     (_, _, Exiting, _) -> halt d
-                     _ -> continue nextState
-  where nextState = S.execState (stateHandler e) d
+appEvent :: StateData -> BrickEvent n e -> EventM Name (Next StateData)
+appEvent d (VtyEvent (EvKey e [] )) =
+             do mExtent <- Brick.Main.lookupExtent ZipperName
+                case mExtent of
+                  Nothing -> error "Couldn't find main Zipper display widget!"
+                  Just (Extent _ _ (width, _) _) ->
+                        case nextState width of 
+                                (StateData _ _ Nothing _ _) -> halt d
+                                _ -> continue (nextState width)
+  where nextState n = S.execState (stateHandler (e,n)) d -- this needs to extract the screen width
 appEvent d _ = continue d
-
-drawUI :: AppStateData -> [Widget ()]
-drawUI (s, z, u, _) = (case u of
-     SelectingTerm l n -> [popup s (L.listMoveBy n (L.list () (Vec.fromList l) 1))]
-     _ -> []) ++ [zipperToWidget s z]
-
-popup :: SymbolTable -> L.List () (Term Token) -> Widget ()
-popup s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
-                              [ str " "
-                              , C.hCenter box
-                              , str " "
-                              , C.hCenter (str "Use arrow keys to move up/down.")
-                              , C.hCenter (str "Press p to exit.")
-                              ]
-    where
-        label = str "Item " <+> str cur <+> str " of " <+> str total
-        cur = case l^.(L.listSelectedL) of
-                Nothing -> "-"
-                Just i  -> show (i + 1)
-        total = show (Vec.length (l^.(L.listElementsL)))
-        listDrawElement _ a = C.hCenter $ hLimit 35 $ vLimit 1 $
-                                str "    " <+> (renderDoc (renderTerm s NoRenderContext a)) <+> fill ' '
-        box = hLimit 35 $
-              vLimit 15 $
-              L.renderList listDrawElement True l
 
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
@@ -75,7 +50,7 @@ theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
     ]
 
-theApp :: App AppStateData e ()
+theApp :: App StateData e Name
 theApp =
       App { appDraw = drawUI
           , appChooseCursor = showFirstCursor
@@ -84,5 +59,5 @@ theApp =
           , appAttrMap = const theMap
           }
 
-main :: IO AppStateData
+main :: IO StateData
 main = defaultMain theApp initialState

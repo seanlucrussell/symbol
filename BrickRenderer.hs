@@ -2,12 +2,17 @@
 module BrickRenderer
   ( zipperToWidget
   , renderDoc
+  , Name (ZipperName, PopupName)
+  , popup
+  , drawUI
   ) where
 
 import AST
 import SymbolData
 import Utilities
 import Renderer
+import Application
+import SymbolRenderer
 
 import Data.Text.Prettyprint.Doc
 import qualified Data.Text as T
@@ -15,11 +20,16 @@ import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
 import Graphics.Vty
 import qualified Brick
 import Brick.Types (Widget)
-import Brick.Widgets.Core (vBox, str, modifyDefAttr)
+import qualified Brick.Widgets.List as L
+import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit)
+import qualified Data.Vector as Vec
+import qualified Brick.Widgets.Border as B
+import qualified Brick.Widgets.Center as C
+
 import Lens.Micro
 import Control.Monad
 
-renderStack :: [StackInstructions Marking] -> [Widget ()]
+renderStack :: [StackInstructions Marking] -> [Widget Name]
 renderStack lines = renderStack' lines []
  where
  renderStack' [] _                  = [str ""]
@@ -49,11 +59,42 @@ renderStack lines = renderStack' lines []
 -- more info on vty styling (bold, underline, etc):
 -- https://hackage.haskell.org/package/vty-5.29/docs/Graphics-Vty-Attributes.html
 
-renderDoc :: Doc Marking -> Widget ()
+renderDoc :: Doc Marking -> Widget Name
 renderDoc d = Brick.Widget Brick.Fixed Brick.Fixed
   (do ctx <- Brick.getContext
       Brick.render $ vBox $ renderStack $ treeToStack $ treeForm $ layout (ctx^.Brick.availWidthL) d)
 
-zipperToWidget :: Renderable a => SymbolTable -> Zipper a -> Widget ()
-zipperToWidget s = renderDoc . renderZipper s
+data Name = ZipperName | PopupName deriving (Eq, Show)
 
+instance Ord Name where
+  ZipperName <= PopupName = True
+  PopupName <= ZipperName = False
+  _ <= _ = True
+
+zipperToWidget :: Renderable a => SymbolTable -> Zipper a -> Widget Name
+zipperToWidget s = Brick.reportExtent ZipperName . renderDoc . renderZipper s
+
+drawUI :: StateData -> [Widget Name]
+drawUI (StateData s z u _ p) = (case p of
+     Just (l, n) -> [popup s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
+     _ -> []) ++ [zipperToWidget s z]
+
+popup :: SymbolTable -> L.List Name (Term Token) -> Widget Name
+popup s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
+                              [ str " "
+                              , C.hCenter box
+                              , str " "
+                              , C.hCenter (str "Use arrow keys to move up/down.")
+                              , C.hCenter (str "Press p to exit.")
+                              ]
+    where
+        label = str "Item " Brick.<+> str cur Brick.<+> str " of " Brick.<+> str total
+        cur = case l^.(L.listSelectedL) of
+                Nothing -> "-"
+                Just i  -> show (i + 1)
+        total = show (Vec.length (l^.(L.listElementsL)))
+        listDrawElement _ a = C.hCenter $ hLimit 35 $ vLimit 1 $
+                                str "    " Brick.<+> (renderDoc (renderTerm s NoRenderContext a)) Brick.<+> Brick.fill ' '
+        box = hLimit 35 $
+              vLimit 15 $
+              L.renderList listDrawElement True l

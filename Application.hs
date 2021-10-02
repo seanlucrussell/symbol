@@ -59,7 +59,11 @@ import Control.Monad.State
 -- so then what am I really saving by having this new model for managing app
 -- transformations? It does seem slightly simpler, but I end up replicating bits
 -- of it anyhow to communicate w/ the renderer
-data StateData = StateData SymbolTable (Zipper Token) (Maybe StateHandler) Position (Maybe ([Term Token], Int))
+
+-- so this datatype is getting out of hand. BUT! it works pretty dang well. the
+-- recursive bit at the end means that this thing keeps track of history, so we
+-- can commit and revert changes as batches.
+data StateData = StateData SymbolTable (Zipper Token) (Maybe StateHandler) Position (Maybe ([Term Token], Int)) StateData
 type AppState = State StateData
 type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
 type StateHandler = AppInput -> AppState ()
@@ -144,21 +148,29 @@ languageModifier (_          , _) = return ()
 
 -- language agnostic transformations
 
+commit :: AppState ()
+commit = do sd@(StateData s z u p x _) <- get
+            put (StateData s z u p x sd)
+
+revert :: AppState ()
+revert = do StateData _ _ _ _ _ h <- get
+            put h
+
 changeUIState :: StateHandler -> AppState ()
-changeUIState u = do StateData s z _ p x <- get
-                     put (StateData s z (Just u) p x)
+changeUIState u = do StateData s z _ p x h <- get
+                     put (StateData s z (Just u) p x h)
 
 terminate :: AppState ()
-terminate = do StateData s z _ p x <- get
-               put (StateData s z Nothing p x)
+terminate = do StateData s z _ p x h <- get
+               put (StateData s z Nothing p x h)
 
 applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
-applyToSymbolTable f = do StateData s z u p x <- get
-                          put (StateData (f s) z u p x)
+applyToSymbolTable f = do StateData s z u p x h <- get
+                          put (StateData (f s) z u p x h)
 
 applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
-applyToZipper f = do StateData s z u p x <- get
-                     put (StateData s (f z) u p x)
+applyToZipper f = do StateData s z u p x h <- get
+                     put (StateData s (f z) u p x h)
                      -- updatePosition
                      -- ^^^^^^^^^^^^^^ this is causing errors right now. due to
                      -- some bits of the program that make incremental changes
@@ -168,8 +180,8 @@ applyToZipper f = do StateData s z u p x <- get
                      -- to deal w/ that
 
 applyToPosition :: (Position -> Position) -> AppState ()
-applyToPosition f = do StateData s z u p x <- get
-                       put (StateData s z u (f p) x)
+applyToPosition f = do StateData s z u p x h <- get
+                       put (StateData s z u (f p) x h)
                        -- updatePath
                        -- ^^^^^^^^^^ this is causing errors right now. due to
                        -- some bits of the program that make incremental changes
@@ -179,23 +191,23 @@ applyToPosition f = do StateData s z u p x <- get
                        -- model to deal w/ that
 
 setPopup :: Maybe ([Term Token], Int) -> AppState ()
-setPopup x = do StateData s z u p _ <- get
-                put (StateData s z u p x)
+setPopup x = do StateData s z u p _ h <- get
+                put (StateData s z u p x h)
 
 getUIState :: AppState (Maybe StateHandler)
-getUIState = do StateData _ _ u _ _ <- get
+getUIState = do StateData _ _ u _ _ _ <- get
                 return u
 
 getSymbolTable :: AppState SymbolTable
-getSymbolTable = do StateData s _ _ _ _ <- get
+getSymbolTable = do StateData s _ _ _ _ _ <- get
                     return s
 
 getZipper :: AppState (Zipper Token)
-getZipper = do StateData _ z _ _ _ <- get
+getZipper = do StateData _ z _ _ _ _ <- get
                return z
 
 getPosition :: AppState Position
-getPosition = do StateData _ _ _ p _ <- get
+getPosition = do StateData _ _ _ p _ _ <- get
                  return p
 
 -- needs more thought, but heres some improvements:
@@ -240,10 +252,10 @@ updatePosition n = do pathMap <- getPathMap n
 
 
 updatePath :: Int -> AppState ()
-updatePath n = do StateData s (t, _) u p x <- get
+updatePath n = do StateData s (t, _) u p x h <- get
                   pMap <- pathFromPosition n
                   case pMap of
-                         Just p' -> put (StateData s (t, p') u p x)
+                         Just p' -> put (StateData s (t, p') u p x h)
                          Nothing -> return ()
 
 pathFromPosition :: Int -> AppState (Maybe Path)
@@ -276,6 +288,8 @@ homeHandler ((KChar 'j') , _) = applyToZipper selectFirst
 homeHandler ((KChar 'l') , _) = applyToZipper selectNext
 homeHandler ((KChar 'h') , _) = applyToZipper selectPrev
 homeHandler ((KChar 'k') , _) = applyToZipper goUp
+homeHandler ((KChar 'c') , _) = commit
+homeHandler ((KChar 'u') , _) = revert
 homeHandler (KEsc        , _) = terminate
 homeHandler (KUp         , _) = applyToPosition selectUp
 homeHandler (KDown       , _) = applyToPosition selectDown
@@ -284,7 +298,7 @@ homeHandler (KRight      , _) = applyToPosition selectRight
 homeHandler (k           , n) = languageModifier (k, n)
 
 initialState :: StateData
-initialState = StateData initialSymbolTable initialZipper (Just homeHandler) (0,0) Nothing
+initialState = StateData initialSymbolTable initialZipper (Just homeHandler) (0,0) Nothing initialState
 
 appHasTerminated :: Maybe StateHandler -> Bool
 appHasTerminated = isNothing

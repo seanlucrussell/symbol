@@ -75,7 +75,7 @@ zipperToWidget :: Renderable a => SymbolTable -> Zipper a -> Widget Name
 zipperToWidget s = Brick.reportExtent ZipperName . renderDoc . renderZipper s
 
 drawUI :: StateData -> [Widget Name]
-drawUI (StateData s z u _ p) = (case p of
+drawUI (StateData s z u _ p _) = (case p of
      Just (l, n) -> [popup s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s z]
 

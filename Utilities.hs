@@ -1,18 +1,20 @@
 module Utilities
         ( (.-)
         , (<!>)
+        , applyAtIndex
+        , changeAtIndex
+        , firstNumberNotInList
+        , insertAt
+        , maybeToBool
+        , safeListIndex
+        , toMaybe
         , try
         , untilFailure
-        , toMaybe
-        , maybeToBool
-        , changeAtIndex
-        , applyAtIndex
-        , insertAt
-        , safeListIndex
         ) where
 
 -- module for all the generic stuff I been using
 
+import qualified Data.Set
 import Data.Maybe
 import Control.Applicative
 
@@ -55,6 +57,11 @@ safeListIndex :: Int -> [a] -> Maybe a
 safeListIndex 0 (x:xs) = Just x
 safeListIndex n [] = Nothing
 safeListIndex n (x:xs) = if n < 0 then Nothing else safeListIndex (n-1) xs
+
+firstNumberNotInList :: [Int] -> Int
+firstNumberNotInList l = f 0
+     where s = Data.Set.fromList l
+           f n = if Data.Set.member n s then f (n+1) else n
 
 -- stolen from https://hackage.haskell.org/package/tomland-1.3.3.0/docs/src/Toml.Codec.Types.          html#%3C%21%3E
 infixl 3 <!>

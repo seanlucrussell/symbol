@@ -1,3 +1,21 @@
+ARCHITECTURE THING
+
+We have 3 parts:
+
+application backend
+- currently brick
+
+language
+- currently symbol
+
+core library
+- all the term stuff
+
+language depends on core. application depends on core. langauge and backend have
+no interdependence (nor even knowledge of each other). work to split files
+appropriately
+
+
 potential advantages of this method
 
 * code style guides are a thing of the past! mostly. we can focus more now on

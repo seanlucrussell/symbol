@@ -9,20 +9,20 @@ module Application
 
 import AST
 import Movements
-import Transformations
-import Utilities
 import Renderer
-import SymbolRenderer
-
 import SymbolData
 import SymbolMovements
+import SymbolRenderer
+import SymbolUtilities
+import Transformations
+import Utilities
 
-import Data.Maybe
-import qualified Data.Set as S
-import Data.Text
-import Data.Map
-import Graphics.Vty
 import Control.Monad.State
+import Data.Map
+import Data.Maybe
+import Data.Text
+import Graphics.Vty
+import qualified Data.Set as S
 
 -- cool idea: certain input events don't fully specify a new, valid state. e.g.
 -- naming a variable. you could have invalid variable names while editing. so
@@ -63,12 +63,17 @@ import Control.Monad.State
 -- so this datatype is getting out of hand. BUT! it works pretty dang well. the
 -- recursive bit at the end means that this thing keeps track of history, so we
 -- can commit and revert changes as batches.
-data StateData = StateData SymbolTable (Zipper Token) (Maybe StateHandler) Position (Maybe ([Term Token], Int)) StateData
-type AppState = State StateData
-type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
-type StateHandler = AppInput -> AppState ()
 
--- language specific transformations
+-- symbol specific stuff
+type SymbolState = (SymbolTable, Zipper Token, Position, Maybe PopupData)
+type PopupData = ([Term Token], Int)
+
+-- brick specific stuff
+type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
+
+data StateData = StateData SymbolState (Maybe StateHandler) StateData
+type AppState = State StateData
+type StateHandler = AppInput -> AppState ()
 
 -- semantics for string reader:
 --   some sort of parser to validate string (i.e. int parser, id parser,
@@ -78,31 +83,6 @@ type StateHandler = AppInput -> AppState ()
 --   revert changes when you hit enter if the parsed string ain't valid
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
---
--- should be easy to implement too. split StateData into 
---   (SymbolTable, Zipper Token, Position)
--- and
---   UIState
--- then add a new thing that is [StateData] for all the commited changes.
--- Then add new functions
---   commit :: AppState ()
---   revert :: AppState ()
--- where you respectively push and pop the current app data to the change stack
-
-validIdentifier :: Term Token -> Term Token
-validIdentifier t = Term (IdentifierTerm (findValidAssignmentId t)) []
-
-findValidAssignmentId :: Term Token -> Int
-findValidAssignmentId z = firstNumberNotInList (findAllIds z)
-
-findAllIds :: Term Token -> [Int]
-findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
-findAllIds (Term _ ts) = join (fmap findAllIds ts)
-
-firstNumberNotInList :: [Int] -> Int
-firstNumberNotInList l = f 0
-     where s = S.fromList l
-           f n = if S.member n s then f (n+1) else n
 
 transitionHome :: (Zipper Token -> Zipper Token) -> AppState ()
 transitionHome f = do changeUIState homeHandler
@@ -117,97 +97,49 @@ setName s = do changeUIState (addingNameHandler s)
                z' <- getZipper
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
 
-addingNameHandler :: String -> StateHandler
-addingNameHandler " " ((KChar ' '), _) = return ()
-addingNameHandler " " ((KChar k)  , _) = setName [k]
-addingNameHandler s   ((KChar k)  , _) = setName (s ++ [k])
-addingNameHandler " " (KEnter     , _) = return ()
-addingNameHandler s   (KEnter     , _) = transitionHome nextHole
-addingNameHandler []  (KBS        , _) = return ()
-addingNameHandler [_] (KBS        , _) = setName " "
-addingNameHandler s   (KBS        , _) = setName (Prelude.init s)
-addingNameHandler _   (_          , _) = return ()
-
-overIdentifier :: Zipper Token -> Bool
-overIdentifier (t,p) = case tokenUnderCursor (goUp (t,p)) of
-        FunctionTerm -> Prelude.last p == 0
-        AssignmentTerm -> Prelude.last p == 0
-        _ -> False
-
 whenOverIdentifier :: AppState a -> AppState a -> AppState a
 whenOverIdentifier yes no = do z <- getZipper
                                if overIdentifier z then yes else no
 
-languageModifier :: StateHandler
-languageModifier ((KChar 'r'), _) = whenOverIdentifier (setName " ") (return ())
-languageModifier ((KChar 'p'), _) = whenOverIdentifier (return ()) (do z <- getZipper
-                                                                       selectTerm (possibleTerms z) 0)
-languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
-languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
-languageModifier (_          , _) = return ()
-
--- language agnostic transformations
-
-commit :: AppState ()
-commit = do sd@(StateData s z u p x _) <- get
-            put (StateData s z u p x sd)
-
-revert :: AppState ()
-revert = do StateData _ _ _ _ _ h <- get
-            put h
-
-changeUIState :: StateHandler -> AppState ()
-changeUIState u = do StateData s z _ p x h <- get
-                     put (StateData s z (Just u) p x h)
-
-terminate :: AppState ()
-terminate = do StateData s z _ p x h <- get
-               put (StateData s z Nothing p x h)
-
 applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
-applyToSymbolTable f = do StateData s z u p x h <- get
-                          put (StateData (f s) z u p x h)
+applyToSymbolTable f = applyToSymbolState (\(s, z, p, x) -> ((f s), z, p, x))
 
 applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
-applyToZipper f = do StateData s z u p x h <- get
-                     put (StateData s (f z) u p x h)
-                     -- updatePosition
-                     -- ^^^^^^^^^^^^^^ this is causing errors right now. due to
-                     -- some bits of the program that make incremental changes
-                     -- to the zipper, where intermediate states are invalid
-                     -- (e.g. not specifying things in the symbol table) but the
-                     -- transformation as a whole is kosher. need a better model
-                     -- to deal w/ that
+applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
 
 applyToPosition :: (Position -> Position) -> AppState ()
-applyToPosition f = do StateData s z u p x h <- get
-                       put (StateData s z u (f p) x h)
-                       -- updatePath
-                       -- ^^^^^^^^^^ this is causing errors right now. due to
-                       -- some bits of the program that make incremental changes
-                       -- to the zipper, where intermediate states are invalid
-                       -- (e.g. not specifying things in the symbol table) but
-                       -- the transformation as a whole is kosher. need a better
-                       -- model to deal w/ that
+applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
 
 setPopup :: Maybe ([Term Token], Int) -> AppState ()
-setPopup x = do StateData s z u p _ h <- get
-                put (StateData s z u p x h)
+setPopup x = applyToSymbolState (\(s, z, p, _) -> (s, z, p, x))
 
-getUIState :: AppState (Maybe StateHandler)
-getUIState = do StateData _ _ u _ _ _ <- get
-                return u
 
-getSymbolTable :: AppState SymbolTable
-getSymbolTable = do StateData s _ _ _ _ _ <- get
+applyToSymbolState :: (SymbolState -> SymbolState) -> AppState ()
+applyToSymbolState f = do StateData s u h <- get
+                          put (StateData (f s) u h)
+
+getSymbolState :: AppState SymbolState
+getSymbolState = do StateData s _ _ <- get
                     return s
 
+getSymbolTable :: AppState SymbolTable
+getSymbolTable = do (s, _, _, _) <- getSymbolState
+                    return s
+
+getTerm :: AppState (Term Token)
+getTerm = do (t, _) <- getZipper
+             return t
+
+getPath :: AppState Path
+getPath = do (_, p) <- getZipper
+             return p
+
 getZipper :: AppState (Zipper Token)
-getZipper = do StateData _ z _ _ _ _ <- get
+getZipper = do (_, z, _, _) <- getSymbolState
                return z
 
 getPosition :: AppState Position
-getPosition = do StateData _ _ _ p _ _ <- get
+getPosition = do (_, _, p, _) <- getSymbolState
                  return p
 
 -- needs more thought, but heres some improvements:
@@ -232,9 +164,7 @@ selectUp (x,y) = (x,y-1)
 
 getPathMap :: Int -> AppState PathMap
 getPathMap n = do s <- getSymbolTable
-                  (t, _) <- getZipper
-                  -- AAHHH WHAT IS THIS??? pretending like the screen is always
-                  -- 200 characters wide is dumb and wrong
+                  t <- getTerm
                   return (termToPathMap s n t)
 
 positionFromPath :: PathMap -> Path -> Position
@@ -247,15 +177,15 @@ positionFromPath pathMap path = leastInList positions
 
 updatePosition :: Int -> AppState ()
 updatePosition n = do pathMap <- getPathMap n
-                      (_, path) <- getZipper
+                      path <- getPath
                       applyToPosition (const (positionFromPath pathMap path))
 
 
 updatePath :: Int -> AppState ()
-updatePath n = do StateData s (t, _) u p x h <- get
+updatePath n = do StateData (s, (t, _), p, x) u h <- get
                   pMap <- pathFromPosition n
                   case pMap of
-                         Just p' -> put (StateData s (t, p') u p x h)
+                         Just p' -> put (StateData (s, (t, p'), p, x) u h)
                          Nothing -> return ()
 
 pathFromPosition :: Int -> AppState (Maybe Path)
@@ -270,6 +200,17 @@ selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l
 exitPopup :: AppState ()
 exitPopup = setPopup Nothing >> changeUIState homeHandler
 
+addingNameHandler :: String -> StateHandler
+addingNameHandler " " ((KChar ' '), _) = return ()
+addingNameHandler " " ((KChar k)  , _) = setName [k]
+addingNameHandler s   ((KChar k)  , _) = setName (s ++ [k])
+addingNameHandler " " (KEnter     , _) = return ()
+addingNameHandler s   (KEnter     , _) = transitionHome nextHole
+addingNameHandler []  (KBS        , _) = return ()
+addingNameHandler [_] (KBS        , _) = setName " "
+addingNameHandler s   (KBS        , _) = setName (Prelude.init s)
+addingNameHandler _   (_          , _) = return ()
+
 selectingTermHandler :: [Term Token] -> Int -> StateHandler
 selectingTermHandler _ _ ((KChar 'p'), _) = exitPopup
 selectingTermHandler l n (KEnter     , _) = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
@@ -278,6 +219,14 @@ selectingTermHandler l n ((KChar 'j'), _) = selectTerm l (n+1)
 selectingTermHandler l n (KUp        , _) = selectTerm l (n-1)
 selectingTermHandler l n (KDown      , _) = selectTerm l (n+1)
 selectingTermHandler _ _ (_          , _) = return ()
+
+languageModifier :: StateHandler
+languageModifier ((KChar 'r'), _) = whenOverIdentifier (setName " ") (return ())
+languageModifier ((KChar 'p'), _) = whenOverIdentifier (return ()) (do z <- getZipper
+                                                                       selectTerm (possibleTerms z) 0)
+languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
+languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
+languageModifier (_          , _) = return ()
 
 homeHandler :: StateHandler
 homeHandler ((KChar 'n') , _) = applyToZipper nextHole
@@ -298,7 +247,27 @@ homeHandler (KRight      , _) = applyToPosition selectRight
 homeHandler (k           , n) = languageModifier (k, n)
 
 initialState :: StateData
-initialState = StateData initialSymbolTable initialZipper (Just homeHandler) (0,0) Nothing initialState
+initialState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) initialState
+
+commit :: AppState ()
+commit = do sd@(StateData s u _) <- get
+            put (StateData s u sd)
+
+revert :: AppState ()
+revert = do StateData _ _ h <- get
+            put h
+
+changeUIState :: StateHandler -> AppState ()
+changeUIState u = do StateData s _ h <- get
+                     put (StateData s (Just u) h)
+
+terminate :: AppState ()
+terminate = do StateData s _ h <- get
+               put (StateData s Nothing h)
+
+getUIState :: AppState (Maybe StateHandler)
+getUIState = do StateData _ u _ <- get
+                return u
 
 appHasTerminated :: Maybe StateHandler -> Bool
 appHasTerminated = isNothing

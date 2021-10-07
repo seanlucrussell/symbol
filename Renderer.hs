@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Renderer
-  ( renderTerm
-  , Renderable (renderTerm')
+  ( Marking (Highlight, Yellow, White, Green, Blue, Magenta, Cyan, Red, Location)
+  , PathMap
+  , Position
   , RenderContext (RenderContext, NoRenderContext)
-  , Marking (Highlight, Yellow, White, Green, Blue, Magenta, Cyan, Red, Location)
+  , Renderable (renderTerm')
   , StackInstructions (Push, Pop, NewLine, StackLiteral)
   , layout
+  , renderTerm
+  , renderZipper
   , termToPathMap
   , treeToStack
-  , renderZipper
-  , Position
-  , PathMap
   ) where
 
 import AST

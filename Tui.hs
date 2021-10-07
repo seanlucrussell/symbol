@@ -37,7 +37,7 @@ appEvent d (VtyEvent (EvKey e [] )) =
                   Nothing -> error "Couldn't find main Zipper display widget!"
                   Just (Extent _ _ (width, _) _) ->
                         case nextState width of 
-                                (StateData _ _ Nothing _ _ _) -> halt d
+                                (StateData (_, _, _, _) Nothing _) -> halt d
                                 _ -> continue (nextState width)
   where nextState n = S.execState (stateHandler (e,n)) d -- this needs to extract the screen width
 appEvent d _ = continue d

@@ -17,7 +17,6 @@ import SymbolMovements
 
 import qualified Data.Text as T
 import qualified Data.Map as M
-import qualified Data.Set as S
 
 import Data.List
 import Data.Maybe
@@ -32,11 +31,6 @@ findValidAssignmentId z = firstNumberNotInList (findAllIds z)
 findAllIds :: Term Token -> [Int]
 findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
 findAllIds (Term _ ts) = join (fmap findAllIds ts)
-
-firstNumberNotInList :: [Int] -> Int
-firstNumberNotInList l = f 0
-     where s = S.fromList l
-           f n = if S.member n s then f (n+1) else n
 
 insertBefore :: Zipper Token -> Zipper Token
 insertBefore (t'@(Term Program t), p:ps) = (Term Program (insertAt p blankAssignment t), p:ps)

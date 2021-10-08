@@ -28,7 +28,7 @@ data RenderContext a = RenderContext a Int
 
 -- split this into internal and external annotations or something. i.e. the
 -- renderer shouldn't have to worry about highlighting and stuff.
-data Marking = Highlight | Yellow | White | Green | Blue | Magenta | Cyan | Red | Location Path
+data Marking = Highlight | Yellow | White | Green | Blue | Magenta | Cyan | Red | Location Path deriving (Show)
 
 class Renderable a where
   renderTerm' :: SymbolTable -> RenderContext a -> a -> [Doc Marking] -> Doc Marking
@@ -40,6 +40,8 @@ layout n = layoutSmart (LayoutOptions (AvailablePerLine n 1))
 type Position = (Int, Int)
 type PathMap = Map Position Path
 
+-- push/pop requires that we ignore annotations that aren't markings. currently
+-- fixed in termToPathMap but more robust solution would be preferred
 generatePathMap :: [Path] -> Position -> SimpleDocStream Marking -> PathMap
 generatePathMap _      (x,y) SFail                      = empty
 generatePathMap _      (x,y) SEmpty                     = empty
@@ -50,10 +52,16 @@ generatePathMap (p:ps) (_,y) (SLine x s)                = generatePathMap (p:ps)
 generatePathMap p      (x,y) (SAnnPush (Location p') s) = generatePathMap (p':p) (x,y) s
 generatePathMap (p:ps) (x,y) (SAnnPush _ s)             = generatePathMap (p:ps) (x,y) s
 generatePathMap (p:ps) (x,y) (SAnnPop s)                = generatePathMap ps (x,y) s
-generatePathMap _      _     _                          = error "unmatched pattern in generatePathMap"
+generatePathMap []     x     n                          = error ("unmatched pattern in generatePathMap: "
+                                                             ++ "empty path"
+                                                             ++ ", "
+                                                             ++ show x ++ show n)
 
 termToPathMap :: Renderable a => SymbolTable -> Int -> Term a -> PathMap
-termToPathMap s n t = generatePathMap [] (0,0) (layout n (renderTerm s NoRenderContext t))
+termToPathMap s n t = generatePathMap [] (0,0) layoutPathsOnly
+        where removeNonPath (Location p) = Just (Location p)
+              removeNonPath _            = Nothing
+              layoutPathsOnly = alterAnnotationsS removeNonPath (layout n (renderTerm s NoRenderContext t))
 
 highlightAtPath :: Path -> Doc Marking -> Doc Marking
 highlightAtPath p = reAnnotate (\q -> case q of 

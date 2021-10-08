@@ -222,28 +222,31 @@ selectingTermHandler _ _ (_          , _) = return ()
 
 languageModifier :: StateHandler
 languageModifier ((KChar 'r'), _) = whenOverIdentifier (setName " ") (return ())
-languageModifier ((KChar 'p'), _) = whenOverIdentifier (return ()) (do z <- getZipper
+languageModifier ((KChar 'p'), n) = whenOverIdentifier (return ()) (do updatePosition n
+                                                                       z <- getZipper
                                                                        selectTerm (possibleTerms z) 0)
 languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
 languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
 languageModifier (_          , _) = return ()
 
 homeHandler :: StateHandler
-homeHandler ((KChar 'n') , _) = applyToZipper nextHole
-homeHandler ((KChar 'N') , _) = applyToZipper previousHole
-homeHandler ((KChar '\t'), _) = applyToZipper nextLeaf
-homeHandler (KBackTab    , _) = applyToZipper prevLeaf
-homeHandler ((KChar 'j') , _) = applyToZipper selectFirst
-homeHandler ((KChar 'l') , _) = applyToZipper selectNext
-homeHandler ((KChar 'h') , _) = applyToZipper selectPrev
-homeHandler ((KChar 'k') , _) = applyToZipper goUp
+homeHandler ((KChar 'n') , n) = applyToZipper nextHole >> updatePosition n
+homeHandler ((KChar 'N') , n) = applyToZipper previousHole >> updatePosition n
+homeHandler ((KChar '\t'), n) = applyToZipper nextLeaf >> updatePosition n
+homeHandler (KBackTab    , n) = applyToZipper prevLeaf >> updatePosition n
+homeHandler ((KChar 'j') , n) = applyToZipper selectFirst >> updatePosition n
+homeHandler ((KChar 'l') , n) = applyToZipper selectNext >> updatePosition n
+homeHandler ((KChar 'h') , n) = applyToZipper selectPrev >> updatePosition n
+homeHandler ((KChar 'k') , n) = applyToZipper goUp >> updatePosition n
 homeHandler ((KChar 'c') , _) = commit
 homeHandler ((KChar 'u') , _) = revert
 homeHandler (KEsc        , _) = terminate
-homeHandler (KUp         , _) = applyToPosition selectUp
-homeHandler (KDown       , _) = applyToPosition selectDown
-homeHandler (KLeft       , _) = applyToPosition selectLeft
-homeHandler (KRight      , _) = applyToPosition selectRight
+homeHandler (KUp         , n) = applyToPosition selectUp >> updatePath n
+homeHandler (KDown       , n) = applyToPosition selectDown >> updatePath n
+-- homeHandler (KLeft       , n) = applyToPosition selectLeft >> updatePath n
+-- homeHandler (KRight      , n) = applyToPosition selectRight >> updatePath n
+homeHandler (KRight      , n) = applyToZipper nextLeaf >> updatePosition n
+homeHandler (KLeft       , n) = applyToZipper prevLeaf >> updatePosition n
 homeHandler (k           , n) = languageModifier (k, n)
 
 initialState :: StateData

@@ -14,17 +14,17 @@ import Renderer
 import Application
 import SymbolRenderer
 
+import Brick.Types (Widget)
+import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit, padLeft, padTop)
 import Data.Text.Prettyprint.Doc
-import qualified Data.Text as T
 import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
 import Graphics.Vty
 import qualified Brick
-import Brick.Types (Widget)
-import qualified Brick.Widgets.List as L
-import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit)
-import qualified Data.Vector as Vec
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
+import qualified Brick.Widgets.List as L
+import qualified Data.Text as T
+import qualified Data.Vector as Vec
 
 import Lens.Micro
 import Control.Monad
@@ -75,26 +75,17 @@ zipperToWidget :: Renderable a => SymbolTable -> Zipper a -> Widget Name
 zipperToWidget s = Brick.reportExtent ZipperName . renderDoc . renderZipper s
 
 drawUI :: StateData -> [Widget Name]
-drawUI (StateData (s, z, _, p) u _) = (case p of
-     Just (l, n) -> [popup s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
+drawUI (StateData (s, z, x, p) u _) = (case p of
+     Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s z]
 
-popup :: SymbolTable -> L.List Name (Term Token) -> Widget Name
-popup s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
-                              [ str " "
-                              , C.hCenter box
-                              , str " "
-                              , C.hCenter (str "Use arrow keys to move up/down.")
-                              , C.hCenter (str "Press p to exit.")
-                              ]
+popup :: Position -> SymbolTable -> L.List Name (Term Token) -> Widget Name
+-- popup (x,y) s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
+popup (x,y) s l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
     where
-        label = str "Item " Brick.<+> str cur Brick.<+> str " of " Brick.<+> str total
-        cur = case l^.(L.listSelectedL) of
-                Nothing -> "-"
-                Just i  -> show (i + 1)
         total = show (Vec.length (l^.(L.listElementsL)))
         listDrawElement _ a = C.hCenter $ hLimit 35 $ vLimit 1 $
-                                str "    " Brick.<+> (renderDoc (renderTerm s NoRenderContext a)) Brick.<+> Brick.fill ' '
+                                (renderDoc (renderTerm s NoRenderContext a)) Brick.<+> Brick.fill ' '
         box = hLimit 35 $
               vLimit 15 $
               L.renderList listDrawElement True l

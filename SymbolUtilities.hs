@@ -10,15 +10,15 @@ import Utilities
 
 import Control.Monad
 
-validIdentifier :: Term Token -> Term Token
-validIdentifier t = Term (IdentifierTerm (findValidAssignmentId t)) []
+validIdentifier :: Tree Token -> Tree Token
+validIdentifier t = Tree (IdentifierTerm (findValidAssignmentId t)) []
 
-findValidAssignmentId :: Term Token -> Int
+findValidAssignmentId :: Tree Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
 
-findAllIds :: Term Token -> [Int]
-findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
-findAllIds (Term _ ts) = join (fmap findAllIds ts)
+findAllIds :: Tree Token -> [Int]
+findAllIds (Tree (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
+findAllIds (Tree _ ts) = join (fmap findAllIds ts)
 
 overIdentifier :: Zipper Token -> Bool
 overIdentifier (t,p) = case tokenUnderCursor (goUp (t,p)) of

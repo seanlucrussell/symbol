@@ -47,18 +47,18 @@ data Token = IdentifierTerm Int
            | Program
            deriving (Eq,Show)
 
-blankIdentifier t = Term (IdentifierTerm t) []
-blankTrue = Term TrueTerm []
-blankFalse = Term FalseTerm []
-blankUnknown = Term UnknownTerm []
-blankFunction = Term FunctionTerm [blankUnknown, blankUnknown, blankUnknown]
-blankConditional = Term ConditionalTerm [blankUnknown, blankUnknown, blankUnknown]
-blankFunctionType = Term FunctionTypeTerm [blankUnknown, blankUnknown]
-blankApplication = Term ApplicationTerm [blankUnknown, blankUnknown]
-blankBoolType = Term BoolTypeTerm []
-blankAssignment = Term AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
+blankIdentifier t = Tree (IdentifierTerm t) []
+blankTrue = Tree TrueTerm []
+blankFalse = Tree FalseTerm []
+blankUnknown = Tree UnknownTerm []
+blankFunction = Tree FunctionTerm [blankUnknown, blankUnknown, blankUnknown]
+blankConditional = Tree ConditionalTerm [blankUnknown, blankUnknown, blankUnknown]
+blankFunctionType = Tree FunctionTypeTerm [blankUnknown, blankUnknown]
+blankApplication = Tree ApplicationTerm [blankUnknown, blankUnknown]
+blankBoolType = Tree BoolTypeTerm []
+blankAssignment = Tree AssignmentTerm [blankUnknown, blankUnknown, blankUnknown]
 
-newAssignment i = Term AssignmentTerm [Term (IdentifierTerm i) [], blankUnknown, blankUnknown]
+newAssignment i = Tree AssignmentTerm [Tree (IdentifierTerm i) [], blankUnknown, blankUnknown]
 
 
 type SymbolTable = Map Int T.Text
@@ -67,4 +67,4 @@ initialSymbolTable :: SymbolTable
 initialSymbolTable = empty
 
 initialZipper :: Zipper Token
-initialZipper = (Term Program [blankAssignment], [0])
+initialZipper = (Tree Program [blankAssignment], [0])

@@ -51,10 +51,10 @@ import qualified Data.Set as S
 --   render :: StateData -> ExtraInfo -> a
 -- ? or maybe we need to be clearer about what info there is that could be
 -- rendered. e.g. have a diff data structure for it:
---   S = S SymbolTable (Zipper Token) Position (Maybe ([Term Token], Int))
+--   S = S SymbolTable (Zipper Token) Position (Maybe ([Tree Token], Int))
 -- or even
 --   MainWindowData = MainWindowData SymbolTable (Zipper Token) Position
---   SelectionPopupData = SelectionPopupData [Term Token] Int
+--   SelectionPopupData = SelectionPopupData [Tree Token] Int
 --   AppData = MainWindow MainWindowData | Popup SelectionPopupData MainWindowData
 -- so then what am I really saving by having this new model for managing app
 -- transformations? It does seem slightly simpler, but I end up replicating bits
@@ -66,7 +66,7 @@ import qualified Data.Set as S
 
 -- symbol specific stuff
 type SymbolState = (SymbolTable, Zipper Token, Position, Maybe PopupData)
-type PopupData = ([Term Token], Int)
+type PopupData = ([Tree Token], Int)
 
 -- brick specific stuff
 type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
@@ -110,7 +110,7 @@ applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
 applyToPosition :: (Position -> Position) -> AppState ()
 applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
 
-setPopup :: Maybe ([Term Token], Int) -> AppState ()
+setPopup :: Maybe ([Tree Token], Int) -> AppState ()
 setPopup x = applyToSymbolState (\(s, z, p, _) -> (s, z, p, x))
 
 
@@ -126,7 +126,7 @@ getSymbolTable :: AppState SymbolTable
 getSymbolTable = do (s, _, _, _) <- getSymbolState
                     return s
 
-getTerm :: AppState (Term Token)
+getTerm :: AppState (Tree Token)
 getTerm = do (t, _) <- getZipper
              return t
 
@@ -193,7 +193,7 @@ pathFromPosition n = do pathMap <- getPathMap n
                         position <- getPosition
                         return (Data.Map.lookup position pathMap)
 
-selectTerm :: [Term Token] -> Int -> AppState ()
+selectTerm :: [Tree Token] -> Int -> AppState ()
 selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
@@ -211,7 +211,7 @@ addingNameHandler [_] (KBS        , _) = setName " "
 addingNameHandler s   (KBS        , _) = setName (Prelude.init s)
 addingNameHandler _   (_          , _) = return ()
 
-selectingTermHandler :: [Term Token] -> Int -> StateHandler
+selectingTermHandler :: [Tree Token] -> Int -> StateHandler
 selectingTermHandler _ _ ((KChar 'p'), _) = exitPopup
 selectingTermHandler l n (KEnter     , _) = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
 selectingTermHandler l n ((KChar 'k'), _) = selectTerm l (n-1)

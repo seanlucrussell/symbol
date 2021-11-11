@@ -33,26 +33,26 @@ data Id = Id Int | UnknownId
 data Prog = Prog [Assign]
           deriving (Eq,Show)
 
-valId :: Context -> Term Token -> Maybe Id
-valId _ (Term (IdentifierTerm t) []) = Just (Id t)
-valId _ (Term UnknownTerm [])        = Just UnknownId
+valId :: Context -> Tree Token -> Maybe Id
+valId _ (Tree (IdentifierTerm t) []) = Just (Id t)
+valId _ (Tree UnknownTerm [])        = Just UnknownId
 valId _ _                            = Nothing
 
-valType :: Context -> Term Token -> Maybe Type
-valType _ (Term BoolTypeTerm []) = Just BooleanType
-valType _ (Term UnknownTerm []) = Just UnknownType
-valType c (Term FunctionTypeTerm [a,b]) = do a' <- valType c a
+valType :: Context -> Tree Token -> Maybe Type
+valType _ (Tree BoolTypeTerm []) = Just BooleanType
+valType _ (Tree UnknownTerm []) = Just UnknownType
+valType c (Tree FunctionTypeTerm [a,b]) = do a' <- valType c a
                                              b' <- valType c b
                                              return (FunctionType a' b')
 valType _ _ = Nothing
 
-valTrm :: Context -> Term Token -> Maybe Trm
-valTrm c (Term (IdentifierTerm t) []) = do _ <- M.lookup t c
+valTrm :: Context -> Tree Token -> Maybe Trm
+valTrm c (Tree (IdentifierTerm t) []) = do _ <- M.lookup t c
                                            return (Ref t)
-valTrm c (Term UnknownTerm []) = Just Unknown
-valTrm c (Term TrueTerm []) = Just T
-valTrm c (Term FalseTerm []) = Just F
-valTrm c (Term ApplicationTerm [x,y]) = do x' <- valTrm c x
+valTrm c (Tree UnknownTerm []) = Just Unknown
+valTrm c (Tree TrueTerm []) = Just T
+valTrm c (Tree FalseTerm []) = Just F
+valTrm c (Tree ApplicationTerm [x,y]) = do x' <- valTrm c x
                                            y' <- valTrm c y
                                            xt <- typeOf c x
                                            yt <- typeOf c y
@@ -60,7 +60,7 @@ valTrm c (Term ApplicationTerm [x,y]) = do x' <- valTrm c x
                                                 FunctionType a b -> if typeEquality a yt then return (App x' y') else Nothing
                                                 UnknownType -> return (App x' y')
                                                 _ -> Nothing
-valTrm c (Term ConditionalTerm [x,y,z]) = do x' <- valTrm c x
+valTrm c (Tree ConditionalTerm [x,y,z]) = do x' <- valTrm c x
                                              y' <- valTrm c y
                                              z' <- valTrm c z
                                              xt <- typeOf c x
@@ -70,22 +70,22 @@ valTrm c (Term ConditionalTerm [x,y,z]) = do x' <- valTrm c x
                                                 BooleanType -> if typeEquality yt zt then return (Cond x' y' z') else Nothing
                                                 UnknownType -> if typeEquality yt zt then return (Cond x' y' z') else Nothing
                                                 _ -> Nothing
-valTrm c (Term FunctionTerm [x,y,z]) = do x' <- valId c x
+valTrm c (Tree FunctionTerm [x,y,z]) = do x' <- valId c x
                                           y' <- valType c y
                                           newContext <- updateContext x' y' c
                                           z' <- valTrm newContext z
                                           return (Fn x' y' z')
 valTrm _ _ = Nothing
 
-valAssign :: Context -> Term Token -> Maybe Assign
-valAssign c (Term AssignmentTerm [x,y,z]) = do x' <- valId c x
+valAssign :: Context -> Tree Token -> Maybe Assign
+valAssign c (Tree AssignmentTerm [x,y,z]) = do x' <- valId c x
                                                y' <- valType c y
                                                z' <- valTrm c z
                                                zt <- typeOf c z
                                                if typeEquality y' zt then return (Assign x' y' z') else Nothing
 valAssign _ _ = Nothing
 
-valAssigns :: Context -> [Term Token] -> Maybe [Assign]
+valAssigns :: Context -> [Tree Token] -> Maybe [Assign]
 valAssigns _ [] = Just []
 valAssigns c (a:as) = do a'@(Assign i t b) <- valAssign c a
                          c' <- updateContext i t c
@@ -93,12 +93,12 @@ valAssigns c (a:as) = do a'@(Assign i t b) <- valAssign c a
                          return (a':as')
                          
 
-valProg :: Context -> Term Token -> Maybe Prog
-valProg c (Term Program as) = do as' <- valAssigns c as
+valProg :: Context -> Tree Token -> Maybe Prog
+valProg c (Tree Program as) = do as' <- valAssigns c as
                                  return (Prog as')
 valProg _ _ = Nothing
 
-validateProgram :: Term Token -> Bool
+validateProgram :: Tree Token -> Bool
 validateProgram = maybeToBool . valProg emptyContext
 
 typeEquality :: Type -> Type -> Bool
@@ -111,31 +111,31 @@ typeEquality _ _ = False
 
 
 -- returns Nothing if the type checking is invalid
-typeOf :: Context -> Term Token -> Maybe Type
-typeOf c (Term (IdentifierTerm i) []) = M.lookup i c
---typeOf c (Term FunctionTerm [Term UnknownTerm [], t, b]) = do argType <- valType c t
+typeOf :: Context -> Tree Token -> Maybe Type
+typeOf c (Tree (IdentifierTerm i) []) = M.lookup i c
+--typeOf c (Tree FunctionTerm [Tree UnknownTerm [], t, b]) = do argType <- valType c t
 --                                                              bodyType <- typeOf c b
 --                                                              return (FunctionType argType bodyType)
-typeOf c (Term FunctionTerm [i, t, b]) = do i' <- valId c i
+typeOf c (Tree FunctionTerm [i, t, b]) = do i' <- valId c i
                                             argType <- valType c t
                                             newContext <- updateContext i' argType c
                                             bodyType <- typeOf newContext b
                                             return (FunctionType argType bodyType)
-typeOf c (Term ApplicationTerm [f, x]) = do fType <- typeOf c f
+typeOf c (Tree ApplicationTerm [f, x]) = do fType <- typeOf c f
                                             xType <- typeOf c x
                                             case fType of   
                                               FunctionType a b -> if typeEquality xType a then return b else Nothing
                                               UnknownType -> Just UnknownType
                                               _ -> Nothing
-typeOf _ (Term TrueTerm []) = Just BooleanType
-typeOf _ (Term FalseTerm []) = Just BooleanType
-typeOf c (Term ConditionalTerm [b, x, y]) = do bType <- typeOf c b
+typeOf _ (Tree TrueTerm []) = Just BooleanType
+typeOf _ (Tree FalseTerm []) = Just BooleanType
+typeOf c (Tree ConditionalTerm [b, x, y]) = do bType <- typeOf c b
                                                xType <- typeOf c x
                                                yType <- typeOf c y
                                                if typeEquality bType BooleanType && typeEquality xType yType
                                                   then typeOf c x -- what if x is UnknownType but y isn't?
                                                   else Nothing
-typeOf _ (Term UnknownTerm []) = Just UnknownType
+typeOf _ (Tree UnknownTerm []) = Just UnknownType
 typeOf _ _ = Nothing
 
 validateZipper :: Zipper Token -> Bool

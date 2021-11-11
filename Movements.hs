@@ -55,21 +55,21 @@ selectLast' :: Zipper a -> Maybe (Zipper a)
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 
 -- searching for term can be done in a language agnostic way
--- searchNext :: (Term a -> Bool) -> Term a -> Path -> Maybe Path
--- searchPrev :: (Term a -> Bool) -> Term a -> Path -> Maybe Path
+-- searchNext :: (Tree a -> Bool) -> Tree a -> Path -> Maybe Path
+-- searchPrev :: (Tree a -> Bool) -> Tree a -> Path -> Maybe Path
 -- then we just make a simple specialization
--- nextHole :: Term Token -> Path -> Maybe Path
+-- nextHole :: Tree Token -> Path -> Maybe Path
 -- nextLeaf :: Zipper a -> Maybe Path
 -- nextLeaf z = searchStart z >>= searchDown <|> searchUp z
 
 nextLeaf' :: Zipper a -> Maybe (Zipper a)
 nextLeaf' = nextHole'' (\x -> case termUnderCursor x of
-                                Term _ [] -> True
+                                Tree _ [] -> True
                                 _ -> False)
 
 prevLeaf' :: Zipper a -> Maybe (Zipper a)
 prevLeaf' = previousHole'' (\x -> case termUnderCursor x of
-                                Term _ [] -> True
+                                Tree _ [] -> True
                                 _ -> False)
 
 nextHole'' :: (Zipper a -> Bool) -> Zipper a -> Maybe (Zipper a)
@@ -97,15 +97,15 @@ searchUpLeft f z = (parent >>= selectPrev' >>= searchDownLeft f) <|> (parent >>=
    where parent = goUp' z
 
 -- check if a given path is valid
-validatePath :: Term a -> Path -> Bool
+validatePath :: Tree a -> Path -> Bool
 validatePath _ [] = False
 validatePath t ps = validatePath' t ps
-  where validatePath' (Term _ []) (p:ps) = False
-        validatePath' (Term _ ts) (p:ps) = validatePath'' ts p
+  where validatePath' (Tree _ []) (p:ps) = False
+        validatePath' (Tree _ ts) (p:ps) = validatePath'' ts p
                 where validatePath'' (x:xs) 0 = validatePath' x ps
                       validatePath'' (x:xs) n = if n > 0 then validatePath'' xs (n-1) else False
                       validatePath'' [] n = False
-        validatePath' (Term _ _) [] = True
+        validatePath' (Tree _ _) [] = True
 
 selectFirst' :: Zipper a -> Maybe (Zipper a)
 selectFirst' = attemptPathManipulation selectFirst''

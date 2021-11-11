@@ -26,7 +26,7 @@ import qualified Control.Monad.State as S
 
 -- how we gonna do cool positional stuff:
 -- have a function
--- Term -> Map (Int,Int) Path 
+-- Tree -> Map (Int,Int) Path 
 -- (which would have to be renderer dependent) that produces a map mapping xy
 -- coordinates on the screen to the path to the term at those coordinates
 

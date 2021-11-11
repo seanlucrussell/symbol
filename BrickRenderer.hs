@@ -79,7 +79,7 @@ drawUI (StateData (s, z, x, p) u _) = (case p of
      Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s z]
 
-popup :: Position -> SymbolTable -> L.List Name (Term Token) -> Widget Name
+popup :: Position -> SymbolTable -> L.List Name (Tree Token) -> Widget Name
 -- popup (x,y) s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
 popup (x,y) s l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
     where

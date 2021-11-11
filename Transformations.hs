@@ -25,43 +25,43 @@ import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
 
-findValidAssignmentId :: Term Token -> Int
+findValidAssignmentId :: Tree Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
 
-findAllIds :: Term Token -> [Int]
-findAllIds (Term (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
-findAllIds (Term _ ts) = join (fmap findAllIds ts)
+findAllIds :: Tree Token -> [Int]
+findAllIds (Tree (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
+findAllIds (Tree _ ts) = join (fmap findAllIds ts)
 
 insertBefore :: Zipper Token -> Zipper Token
-insertBefore (t'@(Term Program t), p:ps) = (Term Program (insertAt p blankAssignment t), p:ps)
--- insertBefore (t'@(Term Program t), p:ps) = (Term Program (insertAt p (newAssignment (findValidAssignmentId t')) t), p:ps)
+insertBefore (t'@(Tree Program t), p:ps) = (Tree Program (insertAt p blankAssignment t), p:ps)
+-- insertBefore (t'@(Tree Program t), p:ps) = (Tree Program (insertAt p (newAssignment (findValidAssignmentId t')) t), p:ps)
 
 insertAfter :: Zipper Token -> Zipper Token
-insertAfter (t'@(Term Program t), p:ps) = (Term Program (insertAt (p+1) blankAssignment t), p:ps)
+insertAfter (t'@(Tree Program t), p:ps) = (Tree Program (insertAt (p+1) blankAssignment t), p:ps)
 
-replaceWithTerm :: Term Token -> Zipper Token -> Zipper Token
+replaceWithTerm :: Tree Token -> Zipper Token -> Zipper Token
 replaceWithTerm t = try (replaceWithTerm' t)
 
-replaceWithTermAndSelectNext :: Term Token -> Zipper Token -> Zipper Token
+replaceWithTermAndSelectNext :: Tree Token -> Zipper Token -> Zipper Token
 replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
 
-replaceWithTerm' :: Term Token -> Zipper Token -> Maybe (Zipper Token)
+replaceWithTerm' :: Tree Token -> Zipper Token -> Maybe (Zipper Token)
 replaceWithTerm' t (x, p) = toMaybe (validateZipper replaced) replaced
         where replaced = (replaceWithTerm'' t p x, p)
 
-searchForNamedVariables :: Zipper Token -> [Term Token]
+searchForNamedVariables :: Zipper Token -> [Tree Token]
 searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ prev)
         where prev = case goToTop z of
                           (_, [0]) -> []
                           _ -> searchBefore (selectPrev (goToTop z))
               searchAbove z = case termUnderCursor z of
-                                   Term FunctionTerm [a, _, _] -> a:searchAbove (goUp z)
-                                   Term AssignmentTerm [_, _, _] -> []
+                                   Tree FunctionTerm [a, _, _] -> a:searchAbove (goUp z)
+                                   Tree AssignmentTerm [_, _, _] -> []
                                    _ -> searchAbove (goUp z)
               searchBefore z@(_, [0]) = case termUnderCursor z of
-                                                   Term AssignmentTerm [a, _, _] -> [a]
+                                                   Tree AssignmentTerm [a, _, _] -> [a]
               searchBefore z@(_, _) = case termUnderCursor z of
-                                                 Term AssignmentTerm [a, _, _] -> a:searchBefore (selectPrev z)
+                                                 Tree AssignmentTerm [a, _, _] -> a:searchBefore (selectPrev z)
 
 -- get all named variables
 -- for each variable:
@@ -71,14 +71,14 @@ searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ pr
 --
 -- for now, do it this way. BUT! this is a dumb way of doing things!!! do it
 -- right!!! when you have more time!!!
-functionCalls :: Zipper Token -> [Term Token]
+functionCalls :: Zipper Token -> [Tree Token]
 functionCalls z = concat [ fmap (app x) [1..5] | x <- searchForNamedVariables z]
         where app x 0 = x
-              app x n = Term ApplicationTerm [app x (n-1), blankUnknown]
+              app x n = Tree ApplicationTerm [app x (n-1), blankUnknown]
 
 
 
-standardTerms :: [Term Token]
+standardTerms :: [Tree Token]
 standardTerms = [ blankTrue 
                 , blankFalse 
                 , blankConditional 
@@ -89,16 +89,16 @@ standardTerms = [ blankTrue
                 , blankAssignment
                 , blankUnknown ]
 
-allPossibleTerms :: Zipper Token -> [Term Token]
+allPossibleTerms :: Zipper Token -> [Tree Token]
 allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
 
-termTypeChecks :: Zipper Token -> Term Token -> Bool
+termTypeChecks :: Zipper Token -> Tree Token -> Bool
 termTypeChecks z t = case replaceWithTerm' t z of
                 Just z' -> validateZipper z'
                 Nothing -> False
                         
 
-possibleTerms :: Zipper Token -> [Term Token]
+possibleTerms :: Zipper Token -> [Tree Token]
 possibleTerms z = filter (termTypeChecks z) (allPossibleTerms z)
 
 updateSymbolTable :: Zipper Token -> T.Text -> SymbolTable -> Maybe SymbolTable
@@ -108,6 +108,6 @@ updateSymbolTable z t s = case tokenUnderCursor z of
 
 -- language agnostic
 
-replaceWithTerm'' :: Term a -> [Int] -> Term a -> Term a
+replaceWithTerm'' :: Tree a -> [Int] -> Tree a -> Tree a
 replaceWithTerm'' t [] _ = t
-replaceWithTerm'' t (p:ps) (Term x ts) = Term x (applyAtIndex p (replaceWithTerm'' t ps) ts)
+replaceWithTerm'' t (p:ps) (Tree x ts) = Tree x (applyAtIndex p (replaceWithTerm'' t ps) ts)

@@ -11,13 +11,14 @@ import Renderer
 import Transformations
 import Application
 import BrickRenderer
+import SymbolSerialize
 
 import Data.Text
 import Graphics.Vty
 import Brick
-
 import Text.Read
 
+import System.Environment
 import qualified Brick.AttrMap as A
 import Brick.Types (Widget)
 import qualified Brick.Main
@@ -45,6 +46,12 @@ appEvent d _ = continue d
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
+stateDataFromString :: String -> Maybe StateData
+stateDataFromString s = do (symbolTable, program, path) <- deserialize s
+                           let state = StateData (symbolTable, (program, path), (0,0), Nothing) (Just homeHandler) state in
+                               return state
+        
+
 theMap :: A.AttrMap
 theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
@@ -59,5 +66,16 @@ theApp =
           , appAttrMap = const theMap
           }
 
-main :: IO StateData
-main = defaultMain theApp initialState
+
+-- main :: IO StateData
+main = do args <- getArgs
+          if Prelude.length args /= 1
+          then putStrLn "Please supply 1 file name"
+          else do contents <- readFile (args !! 0)
+                  case stateDataFromString contents of
+                       Just state -> defaultMain theApp state >> putStrLn ""
+                       Nothing -> putStrLn "Could not parse file"
+          --         -- let newContents = map toUpper contents
+          --         -- putStr newContents
+          --         -- writeFile (args !! 0) newContents
+          --         defaultMain theApp initialState

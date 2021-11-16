@@ -3,8 +3,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Application
   ( stateHandler
+  , homeHandler
   , StateData (StateData)
-  , initialState
   ) where
 
 import AST
@@ -248,9 +248,6 @@ homeHandler (KDown       , n) = applyToPosition selectDown >> updatePath n
 homeHandler (KRight      , n) = applyToZipper nextLeaf >> updatePosition n
 homeHandler (KLeft       , n) = applyToZipper prevLeaf >> updatePosition n
 homeHandler (k           , n) = languageModifier (k, n)
-
-initialState :: StateData
-initialState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) initialState
 
 commit :: AppState ()
 commit = do sd@(StateData s u _) <- get

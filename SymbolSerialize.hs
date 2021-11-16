@@ -1,4 +1,8 @@
-module SymbolSerialize where
+module SymbolSerialize 
+        ( serialize
+        , deserialize
+        )
+   where
 
 import SymbolData
 import AST
@@ -81,7 +85,8 @@ whitespace :: Parser [Char]
 whitespace = many $ oneOf " \n\t"
 
 -- <tree>  := (<token> <tree>*)
--- <token> := [a-zA-Z0-9]+
+-- <token> := [a-zA-Z0-9:]+
+-- need to do strings too
 
 treeParser :: Parser (Tree String)
 treeParser = do char '('

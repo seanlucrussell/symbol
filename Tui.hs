@@ -85,7 +85,3 @@ main = do args <- getArgs
                   case stateDataFromString contents of
                        Just state -> defaultMain (theApp (args !! 0)) state >> return ()
                        Nothing -> putStrLn "Could not parse file"
-          --         -- let newContents = map toUpper contents
-          --         -- putStr newContents
-          --         -- writeFile (args !! 0) newContents
-          --         defaultMain theApp initialState

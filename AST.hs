@@ -5,6 +5,7 @@ module AST
   , Tree (Tree)
   , zipperToTerm
   , termUnderCursor
+  , extractToken
   , tokenUnderCursor
   ) where
 import qualified Data.Text as T

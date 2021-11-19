@@ -229,9 +229,6 @@ languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
 languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
 languageModifier (_          , _) = return ()
 
--- writeToFile :: StateHandler
-writeToFile = undefined
-
 homeHandler :: StateHandler
 homeHandler ((KChar 'n') , n) = applyToZipper nextHole >> updatePosition n
 homeHandler ((KChar 'N') , n) = applyToZipper previousHole >> updatePosition n
@@ -241,7 +238,6 @@ homeHandler ((KChar 'j') , n) = applyToZipper selectFirst >> updatePosition n
 homeHandler ((KChar 'l') , n) = applyToZipper selectNext >> updatePosition n
 homeHandler ((KChar 'h') , n) = applyToZipper selectPrev >> updatePosition n
 homeHandler ((KChar 'k') , n) = applyToZipper goUp >> updatePosition n
-homeHandler ((KChar 'w') , _) = writeToFile
 homeHandler ((KChar 'c') , _) = commit
 homeHandler ((KChar 'u') , _) = revert
 homeHandler (KEsc        , _) = terminate

@@ -71,26 +71,68 @@ searchForNamedVariables z = filter (/= blankUnknown) (searchAbove (goUp z) ++ pr
 --
 -- for now, do it this way. BUT! this is a dumb way of doing things!!! do it
 -- right!!! when you have more time!!!
+--
+-- functions are only acceptable when the return type of the function is (at
+-- least partially) defined. ie the return type is not unknown (tho it could be
+-- a function containing unknowns)
+--
+-- when a functions return type is known, then we know its arity. that can be
+-- iterated over and any resulting values that are not well typed can be
+-- discarded
+-- 
+-- so really we just need something to calculate arity given an identifier.
+
+-- If arity is not well defined (i.e. final type is Unknown), this evaluates to
+-- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
+-- (which may be 0, for identifiers which refer to non-function values)
+arity :: Token -> Tree Token -> Path -> Maybe Integer
+arity token tree path = f (findIdentifierDefinition token tree path)
+        where f :: Maybe (Zipper Token) -> Maybe Integer
+              f z = do t <- fmap termUnderCursor z
+                       case t of 
+                          Tree FunctionTerm [_, t, _] -> arityFromTree t
+                          Tree AssignmentTerm [_, t, _] -> arityFromTree t
+                          _ -> Nothing
+              arityFromTree (Tree FunctionTypeTerm [_, t]) = do n <- arityFromTree t
+                                                                return (n+1)
+              arityFromTree (Tree BoolTypeTerm []) = Just 0
+              arityFromTree _ = Nothing
+
+-- to compute arity, we need to find the original definition of the term. this
+-- could be a function or it could be an assignment
+findIdentifierDefinition :: Token -> Tree Token -> Path -> Maybe (Zipper Token)
+findIdentifierDefinition (IdentifierTerm id) tree path = searchUpLeft test (tree,path)
+        where test z = case termUnderCursor z of
+                Tree FunctionTerm [Tree (IdentifierTerm id') [], _, _] -> id == id'
+                Tree AssignmentTerm [Tree (IdentifierTerm id') [], _, _] -> id == id'
+                _ -> False
+
 functionCalls :: Zipper Token -> [Tree Token]
-functionCalls z = concat [ fmap (app x) [1..5] | x <- searchForNamedVariables z]
+functionCalls (t,p) = concat [ fmap (app x) [0..(n (extractToken x))] | x <- searchForNamedVariables (t,p)]
         where app x 0 = x
               app x n = Tree ApplicationTerm [app x (n-1), blankUnknown]
+              n x = case arity x t p of
+                Just m -> m
+                Nothing -> 0
 
-
+-- functionCalls :: Zipper Token -> [Tree Token]
+-- functionCalls z = concat [ fmap (app x) [1..5] | x <- searchForNamedVariables z]
+--         where app x 0 = x
+--               app x n = Tree ApplicationTerm [app x (n-1), blankUnknown]
 
 standardTerms :: [Tree Token]
 standardTerms = [ blankTrue 
                 , blankFalse 
+                , blankFunction
                 , blankConditional 
                 , blankApplication
-                , blankFunction
                 , blankFunctionType 
                 , blankBoolType 
-                , blankAssignment
                 , blankUnknown ]
 
 allPossibleTerms :: Zipper Token -> [Tree Token]
-allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
+allPossibleTerms z = (functionCalls z) ++ standardTerms
+-- allPossibleTerms z = (reverse (searchForNamedVariables z)) ++ (functionCalls z) ++ standardTerms
 
 termTypeChecks :: Zipper Token -> Tree Token -> Bool
 termTypeChecks z t = case replaceWithTerm' t z of

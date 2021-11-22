@@ -177,3 +177,18 @@ So i think the ideal interface would consist of a couple of parts:
 Once those are in place, the next big step is to consider how well refactoring
 could be done. This will involve copy-pasting probably, in addition to some
 other stuff.
+
+* Architecture things
+
+1. Structured datatype for type checking and validating the tree, unstructured
+   for main application. Sometimes less is more when it comes to types (tho i do
+   wonder if we could come up with a typeclass for this, with some interface
+   like select :: Int -> A -> Maybe A for selecting the subtree that would
+   support most of our tree like functionality, but might be more robust?)
+2. Pass functions around as an element of state (functions answer question: how
+   do we react to new input?)
+3. Transactional system to support more sophisticated editing
+4. Stack machine for rendering a tree to text (library already supported it, but
+   I thought it was a neat idea. I guess the library developers also thought it
+   was a good thing)
+5. Duplicating Brick interface to reduce coupling between applications

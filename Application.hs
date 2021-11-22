@@ -1,10 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Application
   ( stateHandler
   , homeHandler
   , StateData (StateData)
+  , SymbolAppInput (..)
+  , ApplicationInput (..)
   ) where
 
 import AST
@@ -21,7 +25,6 @@ import Control.Monad.State
 import Data.Map
 import Data.Maybe
 import Data.Text
-import Graphics.Vty
 import qualified Data.Set as S
 
 -- cool idea: certain input events don't fully specify a new, valid state. e.g.
@@ -39,12 +42,12 @@ import qualified Data.Set as S
 --
 -- so what do we need? some functions:
 --
--- validate :: StateData -> Boolean
--- startTransaction :: AppState ()
--- commit :: AppState ()
+-- validate :: (StateData b) -> Boolean
+-- startTransaction :: (State StateData) ()
+-- commit :: (State StateData) ()
 --
 -- and an extra element to the UIState data type
--- Transacting :: StateData -> UIState
+-- Transacting :: (StateData b) -> UIState
 
 -- ok so state data should maybe accept a Rendering callback or something like
 -- that? something like
@@ -68,12 +71,7 @@ import qualified Data.Set as S
 type SymbolState = (SymbolTable, Zipper Token, Position, Maybe PopupData)
 type PopupData = ([Tree Token], Int)
 
--- brick specific stuff
-type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
-
-data StateData = StateData SymbolState (Maybe StateHandler) StateData
-type AppState = State StateData
-type StateHandler = AppInput -> AppState ()
+data StateData a = SymbolAppInput a => StateData SymbolState (Maybe (a -> (State (StateData a)) ())) (StateData a)
 
 -- semantics for string reader:
 --   some sort of parser to validate string (i.e. int parser, id parser,
@@ -84,11 +82,11 @@ type StateHandler = AppInput -> AppState ()
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
 
-transitionHome :: (Zipper Token -> Zipper Token) -> AppState ()
+transitionHome :: SymbolAppInput a => (Zipper Token -> Zipper Token) -> (State (StateData a)) ()
 transitionHome f = do changeUIState homeHandler
                       applyToZipper f
 
-setName :: String -> AppState ()
+setName :: SymbolAppInput a => String -> (State (StateData a)) ()
 setName s = do changeUIState (addingNameHandler s)
                z <- getZipper
                if tokenUnderCursor z == UnknownTerm
@@ -97,48 +95,48 @@ setName s = do changeUIState (addingNameHandler s)
                z' <- getZipper
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
 
-whenOverIdentifier :: AppState a -> AppState a -> AppState a
+whenOverIdentifier :: SymbolAppInput b => (State (StateData b)) a -> (State (StateData b)) a -> (State (StateData b)) a
 whenOverIdentifier yes no = do z <- getZipper
                                if overIdentifier z then yes else no
 
-applyToSymbolTable :: (SymbolTable -> SymbolTable) -> AppState ()
+applyToSymbolTable :: SymbolAppInput b => (SymbolTable -> SymbolTable) -> (State (StateData b)) ()
 applyToSymbolTable f = applyToSymbolState (\(s, z, p, x) -> ((f s), z, p, x))
 
-applyToZipper :: (Zipper Token -> Zipper Token) -> AppState ()
+applyToZipper :: SymbolAppInput b => (Zipper Token -> Zipper Token) -> (State (StateData b)) ()
 applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
 
-applyToPosition :: (Position -> Position) -> AppState ()
+applyToPosition :: SymbolAppInput b => (Position -> Position) -> (State (StateData b)) ()
 applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
 
-setPopup :: Maybe ([Tree Token], Int) -> AppState ()
+setPopup :: SymbolAppInput b => Maybe ([Tree Token], Int) -> (State (StateData b)) ()
 setPopup x = applyToSymbolState (\(s, z, p, _) -> (s, z, p, x))
 
 
-applyToSymbolState :: (SymbolState -> SymbolState) -> AppState ()
+applyToSymbolState :: SymbolAppInput b => (SymbolState -> SymbolState) -> (State (StateData b)) ()
 applyToSymbolState f = do StateData s u h <- get
                           put (StateData (f s) u h)
 
-getSymbolState :: AppState SymbolState
+getSymbolState :: SymbolAppInput b => (State (StateData b)) SymbolState
 getSymbolState = do StateData s _ _ <- get
                     return s
 
-getSymbolTable :: AppState SymbolTable
+getSymbolTable :: SymbolAppInput b => (State (StateData b)) SymbolTable
 getSymbolTable = do (s, _, _, _) <- getSymbolState
                     return s
 
-getTerm :: AppState (Tree Token)
+getTerm :: SymbolAppInput b => (State (StateData b)) (Tree Token)
 getTerm = do (t, _) <- getZipper
              return t
 
-getPath :: AppState Path
+getPath :: SymbolAppInput b => (State (StateData b)) Path
 getPath = do (_, p) <- getZipper
              return p
 
-getZipper :: AppState (Zipper Token)
+getZipper :: SymbolAppInput b => (State (StateData b)) (Zipper Token)
 getZipper = do (_, z, _, _) <- getSymbolState
                return z
 
-getPosition :: AppState Position
+getPosition :: SymbolAppInput b => (State (StateData b)) Position
 getPosition = do (_, _, p, _) <- getSymbolState
                  return p
 
@@ -162,7 +160,7 @@ selectDown (x,y) = (x,y+1)
 selectUp :: Position -> Position
 selectUp (x,y) = (x,y-1)
 
-getPathMap :: Int -> AppState PathMap
+getPathMap :: SymbolAppInput b => Int -> (State (StateData b)) PathMap
 getPathMap n = do s <- getSymbolTable
                   t <- getTerm
                   return (termToPathMap s n t)
@@ -175,104 +173,114 @@ positionFromPath pathMap path = leastInList positions
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = [position | (position,p) <- toList pathMap, p == path]
 
-updatePosition :: Int -> AppState ()
+updatePosition :: SymbolAppInput b => Int -> (State (StateData b)) ()
 updatePosition n = do pathMap <- getPathMap n
                       path <- getPath
                       applyToPosition (const (positionFromPath pathMap path))
 
 
-updatePath :: Int -> AppState ()
+updatePath :: SymbolAppInput b => Int -> (State (StateData b)) ()
 updatePath n = do StateData (s, (t, _), p, x) u h <- get
                   pMap <- pathFromPosition n
                   case pMap of
                          Just p' -> put (StateData (s, (t, p'), p, x) u h)
                          Nothing -> return ()
 
-pathFromPosition :: Int -> AppState (Maybe Path)
+pathFromPosition :: SymbolAppInput b => Int -> (State (StateData b)) (Maybe Path)
 pathFromPosition n = do pathMap <- getPathMap n
                         position <- getPosition
                         return (Data.Map.lookup position pathMap)
 
-selectTerm :: [Tree Token] -> Int -> AppState ()
+selectTerm :: SymbolAppInput b => [Tree Token] -> Int -> (State (StateData b)) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
-exitPopup :: AppState ()
+exitPopup :: SymbolAppInput b => (State (StateData b)) ()
 exitPopup = setPopup Nothing >> changeUIState homeHandler
 
-addingNameHandler :: String -> StateHandler
-addingNameHandler " " ((KChar ' '), _) = return ()
-addingNameHandler " " ((KChar k)  , _) = setName [k]
-addingNameHandler s   ((KChar k)  , _) = setName (s ++ [k])
-addingNameHandler " " (KEnter     , _) = return ()
-addingNameHandler s   (KEnter     , _) = transitionHome nextHole
-addingNameHandler []  (KBS        , _) = return ()
-addingNameHandler [_] (KBS        , _) = setName " "
-addingNameHandler s   (KBS        , _) = setName (Prelude.init s)
-addingNameHandler _   (_          , _) = return ()
+class SymbolAppInput a where
+  extractInput :: a -> ApplicationInput
+  extractWidth :: a -> Int
 
-selectingTermHandler :: [Tree Token] -> Int -> StateHandler
-selectingTermHandler _ _ ((KChar 'p'), _) = exitPopup
-selectingTermHandler l n (KEnter     , _) = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
-selectingTermHandler l n ((KChar 'k'), _) = selectTerm l (n-1)
-selectingTermHandler l n ((KChar 'j'), _) = selectTerm l (n+1)
-selectingTermHandler l n (KUp        , _) = selectTerm l (n-1)
-selectingTermHandler l n (KDown      , _) = selectTerm l (n+1)
-selectingTermHandler _ _ (_          , _) = return ()
+data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow | RightArrow | Esc | Tab | BackTab |  Other
 
-languageModifier :: StateHandler
-languageModifier ((KChar 'r'), _) = whenOverIdentifier (setName " ") (return ())
-languageModifier ((KChar 'p'), n) = whenOverIdentifier (return ()) (do updatePosition n
-                                                                       z <- getZipper
-                                                                       selectTerm (possibleTerms z) 0)
-languageModifier ((KChar 'O'), _) = applyToZipper insertBefore
-languageModifier ((KChar 'o'), _) = applyToZipper insertAfter
-languageModifier (_          , _) = return ()
+addingNameHandler :: SymbolAppInput a => String -> (a -> (State (StateData a)) ())
+addingNameHandler s i = f s (extractInput i)
+        where f " " (Key ' ') = return ()
+              f " " (Key k)   = setName [k]
+              f s   (Key k)   = setName (s ++ [k])
+              f " " Enter     = return ()
+              f s   Enter     = transitionHome nextHole
+              f []  Del       = return ()
+              f [_] Del       = setName " "
+              f s   Del       = setName (Prelude.init s)
+              f _   _         = return ()
 
-homeHandler :: StateHandler
-homeHandler ((KChar 'n') , n) = applyToZipper nextHole >> updatePosition n
-homeHandler ((KChar 'N') , n) = applyToZipper previousHole >> updatePosition n
-homeHandler ((KChar '\t'), n) = applyToZipper nextLeaf >> updatePosition n
-homeHandler (KBackTab    , n) = applyToZipper prevLeaf >> updatePosition n
-homeHandler ((KChar 'j') , n) = applyToZipper selectFirst >> updatePosition n
-homeHandler ((KChar 'l') , n) = applyToZipper selectNext >> updatePosition n
-homeHandler ((KChar 'h') , n) = applyToZipper selectPrev >> updatePosition n
-homeHandler ((KChar 'k') , n) = applyToZipper goUp >> updatePosition n
-homeHandler ((KChar 'c') , _) = commit
-homeHandler ((KChar 'u') , _) = revert
-homeHandler (KEsc        , _) = terminate
-homeHandler (KUp         , n) = applyToPosition selectUp >> updatePath n
-homeHandler (KDown       , n) = applyToPosition selectDown >> updatePath n
--- homeHandler (KLeft       , n) = applyToPosition selectLeft >> updatePath n
--- homeHandler (KRight      , n) = applyToPosition selectRight >> updatePath n
-homeHandler (KRight      , n) = applyToZipper nextLeaf >> updatePosition n
-homeHandler (KLeft       , n) = applyToZipper prevLeaf >> updatePosition n
-homeHandler (k           , n) = languageModifier (k, n)
+selectingTermHandler :: SymbolAppInput a => [Tree Token] -> Int -> (a -> (State (StateData a)) ())
+selectingTermHandler l n i = f (extractInput i)
+        where f (Key 'p')  = exitPopup
+              f Enter      = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
+              f (Key 'k')  = selectTerm l (n-1)
+              f (Key 'j')  = selectTerm l (n+1)
+              f UpArrow    = selectTerm l (n-1)
+              f DownArrow  = selectTerm l (n+1)
+              f _          = return ()
 
-commit :: AppState ()
+languageModifier :: SymbolAppInput a => (a -> (State (StateData a)) ())
+languageModifier i = f (extractInput i) (extractWidth i)
+        where f (Key 'r') _ = whenOverIdentifier (setName " ") (return ())
+              f (Key 'p') n = whenOverIdentifier (return ()) (do updatePosition n
+                                                                 z <- getZipper
+                                                                 selectTerm (possibleTerms z) 0)
+              f (Key 'O') _ = applyToZipper insertBefore
+              f (Key 'o') _ = applyToZipper insertAfter
+              f _         _ = return ()
+
+homeHandler :: SymbolAppInput a => (a -> (State (StateData a)) ())
+homeHandler i = f (extractInput i) (extractWidth i)
+        where f (Key 'n')  n = applyToZipper nextHole >> updatePosition n
+              f (Key 'N')  n = applyToZipper previousHole >> updatePosition n
+              f (Key '\t') n = applyToZipper nextLeaf >> updatePosition n
+              f BackTab    n = applyToZipper prevLeaf >> updatePosition n
+              f (Key 'j')  n = applyToZipper selectFirst >> updatePosition n
+              f (Key 'l')  n = applyToZipper selectNext >> updatePosition n
+              f (Key 'h')  n = applyToZipper selectPrev >> updatePosition n
+              f (Key 'k')  n = applyToZipper goUp >> updatePosition n
+              f (Key 'c')  _ = commit
+              f (Key 'u')  _ = revert
+              f Esc        _ = terminate
+              f UpArrow    n = applyToPosition selectUp >> updatePath n
+              f DownArrow  n = applyToPosition selectDown >> updatePath n
+              f RightArrow n = applyToZipper nextLeaf >> updatePosition n
+              f LeftArrow  n = applyToZipper prevLeaf >> updatePosition n
+              f k          n = languageModifier i
+              -- f LeftArrow n = applyToPosition selectLeft >> updatePath n
+              -- f RightArrow n = applyToPosition selectRight >> updatePath n
+
+commit :: SymbolAppInput b => (State (StateData b)) ()
 commit = do sd@(StateData s u _) <- get
             put (StateData s u sd)
 
-revert :: AppState ()
+revert :: SymbolAppInput b => (State (StateData b)) ()
 revert = do StateData _ _ h <- get
             put h
 
-changeUIState :: StateHandler -> AppState ()
+changeUIState :: SymbolAppInput b => (b -> (State (StateData b)) ()) -> (State (StateData b)) ()
 changeUIState u = do StateData s _ h <- get
                      put (StateData s (Just u) h)
 
-terminate :: AppState ()
+terminate :: SymbolAppInput b => (State (StateData b)) ()
 terminate = do StateData s _ h <- get
                put (StateData s Nothing h)
 
-getUIState :: AppState (Maybe StateHandler)
+getUIState :: SymbolAppInput b => (State (StateData b)) (Maybe (b -> (State (StateData b)) ()))
 getUIState = do StateData _ u _ <- get
                 return u
 
-appHasTerminated :: Maybe StateHandler -> Bool
+appHasTerminated :: SymbolAppInput b => Maybe (b -> (State (StateData b)) ()) -> Bool
 appHasTerminated = isNothing
 
-stateHandler :: StateHandler
+stateHandler :: SymbolAppInput b => (b -> (State (StateData b)) ())
 stateHandler k = do u <- getUIState
                     case u of
                         Just u' -> u' k

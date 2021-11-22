@@ -10,8 +10,6 @@ module Movements
   , selectLast'
   , nextLeaf
   , prevLeaf
-  , searchUpRight
-  , searchUpLeft
   , previousHole''
   , nextHole''
   , goToTop

@@ -31,10 +31,28 @@ import qualified Control.Monad.State as S
 -- (which would have to be renderer dependent) that produces a map mapping xy
 -- coordinates on the screen to the path to the term at those coordinates
 
-serializeToFile :: String -> StateData -> IO ()
+-- type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
+-- 
+-- 
+-- instance SymbolAppInput AppInput where
+--   extractInput ((KChar '\t'),_) = Tab
+--   extractInput (KBackTab,_)     = BackTab
+--   extractInput ((KChar c),_) = Key c
+--   extractInput (KEnter,_)    = Enter
+--   extractInput (KBS,_)       = Del
+--   extractInput (KUp,_)       = UpArrow
+--   extractInput (KDown,_)     = DownArrow
+--   extractInput (KLeft,_)     = LeftArrow
+--   extractInput (KRight,_)     = RightArrow
+--   extractInput (KEsc,_)     = Esc
+--   extractInput _             = Other
+--   extractWidth (_,n) = n
+
+
+serializeToFile :: String -> StateData AppInput -> IO ()
 serializeToFile f (StateData (table, (program, path), _, _) _ _) = writeFile f (serialize (table, program, path))
 
-appEvent :: String -> StateData -> BrickEvent n e -> EventM Name (Next StateData)
+appEvent :: String -> StateData AppInput -> BrickEvent n e -> EventM Name (Next (StateData AppInput))
 appEvent file d (VtyEvent (EvKey e [] )) =
              do mExtent <- Brick.Main.lookupExtent ZipperName
                 case mExtent of
@@ -54,13 +72,13 @@ appEvent _ d _ = continue d
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
-stateDataFromString :: String -> Maybe StateData
+stateDataFromString :: String -> Maybe (StateData AppInput)
 stateDataFromString s = do (symbolTable, program, path) <- deserialize s
                            let state = StateData (symbolTable, (program, path), (0,0), Nothing) (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already
--- emptyState :: StateData
+-- emptyState :: (StateData AppInput)
 -- emptyState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) state
 
 theMap :: A.AttrMap
@@ -68,7 +86,7 @@ theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
     ]
 
-theApp :: String -> App StateData e Name
+theApp :: String -> App (StateData AppInput) e Name
 theApp file =
       App { appDraw = drawUI
           , appChooseCursor = showFirstCursor
@@ -77,7 +95,7 @@ theApp file =
           , appAttrMap = const theMap
           }
 
--- main :: IO StateData
+-- main :: IO (StateData AppInput)
 main = do args <- getArgs
           if Prelude.length args /= 1
           then putStrLn "Please supply 1 file name"

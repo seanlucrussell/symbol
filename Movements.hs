@@ -56,14 +56,6 @@ goToTop = try (untilFailure goUp')
 selectLast' :: Zipper a -> Maybe (Zipper a)
 selectLast' z = selectFirst' z >>= (untilFailure selectNext')
 
--- searching for term can be done in a language agnostic way
--- searchNext :: (Tree a -> Bool) -> Tree a -> Path -> Maybe Path
--- searchPrev :: (Tree a -> Bool) -> Tree a -> Path -> Maybe Path
--- then we just make a simple specialization
--- nextHole :: Tree Token -> Path -> Maybe Path
--- nextLeaf :: Zipper a -> Maybe Path
--- nextLeaf z = searchStart z >>= searchDown <|> searchUp z
-
 nextLeaf' :: Zipper a -> Maybe (Zipper a)
 nextLeaf' = nextHole'' (\x -> case termUnderCursor x of
                                 Tree _ [] -> True

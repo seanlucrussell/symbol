@@ -16,59 +16,38 @@ data Tree a = Tree a [Tree a]
 
 type S = (SymbolTable, Token, Path)
 
-tokenToString :: Token -> String
-tokenToString (IdentifierTerm n) = "Id:" ++ show n
-tokenToString (FunctionTerm _ _ _) = "Fn"
-tokenToString (ApplicationTerm _ _) = "App"
-tokenToString (TrueTerm        ) = "T"
-tokenToString (FalseTerm       ) = "F"
-tokenToString (ConditionalTerm _ _ _) = "If"
-tokenToString (UnknownTerm     ) = "Unknown"
-tokenToString (FunctionTypeTerm _ _) = "FnT"
-tokenToString (BoolTypeTerm    ) = "BoolT"
-tokenToString (AssignmentTerm  _ _ _) = "Assign"
-tokenToString (Program         _ ) = "Prog"
+tokenToTree :: Token -> Tree String
+tokenToTree (IdentifierTerm n) = Tree ("Id:" ++ show n) []
+tokenToTree (FunctionTerm a b c) = Tree "Fn" (fmap tokenToTree [a,b,c])
+tokenToTree (ApplicationTerm a b) = Tree "App" (fmap tokenToTree [a,b])
+tokenToTree TrueTerm         = Tree "T" []
+tokenToTree FalseTerm        = Tree "F" []
+tokenToTree (ConditionalTerm a b c) = Tree "If" (fmap tokenToTree [a,b,c])
+tokenToTree UnknownTerm      = Tree "Unknown" []
+tokenToTree (FunctionTypeTerm a b) = Tree "FnT" (fmap tokenToTree [a,b])
+tokenToTree BoolTypeTerm     = Tree "BoolT" []
+tokenToTree (AssignmentTerm  a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
+tokenToTree (Program         ts ) = Tree "Prog" (fmap tokenToTree ts)
 
 treeToToken :: Tree String -> Maybe Token
-treeToToken (Tree ('I':'d':':':n) []     ) = readMaybe n >>= (Just . IdentifierTerm)
-treeToToken (Tree "Fn"            [a,b,c]) = do a' <- treeToToken a
-                                                b' <- treeToToken b
-                                                c' <- treeToToken c
-                                                return (FunctionTerm a' b' c')
-treeToToken (Tree "App"           [a,b]  ) = do a' <- treeToToken a
-                                                b' <- treeToToken b
-                                                return (ApplicationTerm a' b')
-treeToToken (Tree "If"            [a,b,c]) = do a' <- treeToToken a
-                                                b' <- treeToToken b
-                                                c' <- treeToToken c
-                                                return (ConditionalTerm a' b' c')
-treeToToken (Tree "FnT"           [a,b]  ) = do a' <- treeToToken a
-                                                b' <- treeToToken b
-                                                return (FunctionTypeTerm a' b')
-treeToToken (Tree "Assign"        [a,b,c]) = do a' <- treeToToken a
-                                                b' <- treeToToken b
-                                                c' <- treeToToken c
-                                                return (AssignmentTerm a' b' c')
-treeToToken (Tree "Prog"          ts     ) = do ts' <- sequence (fmap treeToToken ts)
-                                                return (Program ts')
-treeToToken (Tree "BoolT"         []     ) = Just BoolTypeTerm     
-treeToToken (Tree "T"             []     ) = Just TrueTerm         
-treeToToken (Tree "F"             []     ) = Just FalseTerm        
-treeToToken (Tree "Unknown"       []     ) = Just UnknownTerm      
-treeToToken _                              = Nothing
-
--- format:
---  (Data
---   (SymbolTable
---     (3929294 'var_name')
---     (4423911 'other_var'))
---   (Program
---     (Token
---       (Child-Token)
---       (Other-Child
---          (IntLit 8)
---          (BoolLit True))))
---   (Path (2) (1) (3 (4)))
+treeToToken (Tree ('I':'d':':':n) []) = readMaybe n >>= (Just . IdentifierTerm)
+treeToToken (Tree "Fn"            ts) = do [a,b,c] <- mapM treeToToken ts
+                                           return (FunctionTerm a b c)
+treeToToken (Tree "App"           ts) = do [a,b] <- mapM treeToToken ts
+                                           return (ApplicationTerm a b)
+treeToToken (Tree "If"            ts) = do [a,b,c] <- mapM treeToToken ts
+                                           return (ConditionalTerm a b c)
+treeToToken (Tree "FnT"           ts) = do [a,b] <- mapM treeToToken ts
+                                           return (FunctionTypeTerm a b)
+treeToToken (Tree "Assign"        ts) = do [a,b,c] <- mapM treeToToken ts
+                                           return (AssignmentTerm a b c)
+treeToToken (Tree "Prog"          ts) = do ts' <- mapM treeToToken ts
+                                           return (Program ts')
+treeToToken (Tree "BoolT"         []) = Just BoolTypeTerm     
+treeToToken (Tree "T"             []) = Just TrueTerm         
+treeToToken (Tree "F"             []) = Just FalseTerm        
+treeToToken (Tree "Unknown"       []) = Just UnknownTerm      
+treeToToken _                         = Nothing
 
 -- serializer
 
@@ -82,16 +61,13 @@ tableToTree :: SymbolTable -> Tree String
 tableToTree table = Tree "SymbolTable" (fmap keyValToTree (Data.Map.toList table))
         where keyValToTree (k,v) = Tree "Key" [Tree (show k) [], Tree (Data.Text.unpack v) []]
 
-programToTree :: Token -> Tree String
-programToTree token = Tree (tokenToString token) (fmap programToTree (children token))
-
 pathToTree :: Path -> Tree String
 pathToTree path = Tree "Path" (fmap intToTree path)
         where intToTree n = Tree (show n) []
 
 serialize :: S -> String
 serialize (table, program, path) = serializeTree (Tree "Data" [ tableToTree table
-                                                              , programToTree program
+                                                              , tokenToTree program
                                                               , pathToTree path])
 
 

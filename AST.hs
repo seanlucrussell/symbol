@@ -6,6 +6,7 @@ module AST
   , select
   , isLeaf
   , searchTree
+  , replaceAtIndex
   , replaceAtPoint
   , validatePath
   , Zipper
@@ -26,19 +27,24 @@ type Zipper a = (a, Path)
 validatePath :: Tree a => a -> Path -> Bool
 validatePath t [] = False
 validatePath t [n] = isJust (select n t)
-validatePath t (n:ns) = isJust (do t' <- select n t
-                                   return (validatePath t' ns))
+validatePath t (n:ns) = case (do t' <- select n t
+                                 return (validatePath t' ns)) of
+                             Just True -> True
+                             _ -> False
 
 replaceAtIndex :: Tree a => a -> Int -> a -> Maybe a
 replaceAtIndex t n t' = replaceAtIndex n (children t') >>= update t'
-        where replaceAtIndex 0 (_:xs) = Just (t':xs)
+        where replaceAtIndex 0 (_:xs) = Just (t:xs)
               replaceAtIndex n [] = Nothing
               replaceAtIndex n (x:xs) = do xs' <- replaceAtIndex (n-1) xs
                                            return (x:xs')
 
 replaceAtPoint :: Tree a => a -> Path -> a -> Maybe a
-replaceAtPoint t []     = const (Just t)
-replaceAtPoint t (p:ps) = (replaceAtPoint t ps) >> replaceAtIndex t p
+replaceAtPoint t []     _  = Just t
+replaceAtPoint t (p:ps) t' = do child <- select p t'
+                                t'' <- replaceAtPoint t ps child
+                                replaceAtIndex t'' p t'
+-- replaceAtPoint t (p:ps) = (replaceAtPoint t ps) >> replaceAtIndex t p
 
 isLeaf :: Tree a => a -> Bool
 isLeaf t = case children t of
@@ -47,7 +53,7 @@ isLeaf t = case children t of
 
 select :: Tree a => Int -> a -> Maybe a
 select n t = findChild n (children t)
-        where findChild 0 [t] = Just t
+        where findChild 0 (t:ts) = Just t
               findChild n (t:ts) = findChild (n-1) ts
               findChild _ _ = Nothing
 

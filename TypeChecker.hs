@@ -35,12 +35,12 @@ data Prog = Prog [Assign]
 
 valId :: Context -> Token -> Maybe Id
 valId _ (IdentifierTerm t) = Just (Id t)
-valId _ (UnknownTerm)        = Just UnknownId
-valId _ _                            = Nothing
+valId _ UnknownTerm        = Just UnknownId
+valId _ _                  = Nothing
 
 valType :: Context -> Token -> Maybe Type
-valType _ (BoolTypeTerm) = Just BooleanType
-valType _ (UnknownTerm) = Just UnknownType
+valType _ BoolTypeTerm = Just BooleanType
+valType _ UnknownTerm = Just UnknownType
 valType c (FunctionTypeTerm a b) = do a' <- valType c a
                                       b' <- valType c b
                                       return (FunctionType a' b')

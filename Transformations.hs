@@ -53,22 +53,32 @@ replaceWithTerm' t (x, p) = do replaced <- replaceAtPoint t p x
                                else Nothing
 
 searchForNamedVariables :: Token -> [Token]
-searchForNamedVariables = searchTree test
-        where test (IdentifierTerm _) = True
-              test _ = False
+searchForNamedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
+
+allIdentifierDefinitions :: Token -> [Token]
+allIdentifierDefinitions tree = searchTree test tree
+        where test (FunctionTerm (IdentifierTerm _)  _ _) = True
+              test (AssignmentTerm (IdentifierTerm _) _ _) = True
+              test  _ = False
+
+extractIdentifier :: Token -> Maybe Token
+extractIdentifier (FunctionTerm i _ _) = Just i
+extractIdentifier (AssignmentTerm i _ _) = Just i
+extractIdentifier _ = Nothing
+
+extractType :: Token -> Maybe Token
+extractType (FunctionTerm _ t _) = Just t
+extractType (AssignmentTerm _ t _) = Just t
+extractType _ = Nothing
 
 -- If arity is not well defined (i.e. final type is Unknown), this evaluates to
 -- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
 -- (which may be 0, for identifiers which refer to non-function values)
 arityOfIdentifier :: Token -> Token -> Maybe Integer
-arityOfIdentifier token tree = findIdentifierDefinition token tree >>= f
+arityOfIdentifier token tree = findIdentifierDefinition token tree >>= extractType >>= f
         where f :: Token -> Maybe Integer
               f (FunctionTypeTerm _ t) = fmap (+1) (f t)
-              -- f (FunctionTypeTerm _ t) = do n <- f t
-              --                               return (n+1)
               f BoolTypeTerm = Just 0
-              f (FunctionTerm _ t _) = f t
-              f (AssignmentTerm _ t _) = f t
               f _ = Nothing
 
 -- to compute arity, we need to find the original definition of the term. this

@@ -11,7 +11,6 @@ import AST
 import Movements
 import TypeChecker
 import Utilities
-import ASTUtilities
 
 import SymbolData
 import SymbolMovements
@@ -26,84 +25,89 @@ import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
 
-findValidAssignmentId :: Tree Token -> Int
+findValidAssignmentId :: Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
 
-findAllIds :: Tree Token -> [Int]
-findAllIds (Tree (IdentifierTerm i) ts) = i:join (fmap findAllIds ts)
-findAllIds (Tree _ ts) = join (fmap findAllIds ts)
+findAllIds :: Token -> [Int]
+findAllIds (IdentifierTerm i) = [i]
+findAllIds t = join (fmap findAllIds (children t))
 
 insertBefore :: Zipper Token -> Zipper Token
-insertBefore (t'@(Tree Program t), p:ps) = (Tree Program (insertAt p blankAssignment t), p:ps)
+insertBefore = error "Need to redefine this"
+-- insertBefore (t'@(Tree Program t), p:ps) = (Tree Program (insertAt p blankAssignment t), p:ps)
 
 insertAfter :: Zipper Token -> Zipper Token
-insertAfter (t'@(Tree Program t), p:ps) = (Tree Program (insertAt (p+1) blankAssignment t), p:ps)
+insertAfter = error "Need to redefine this"
+-- insertAfter (t'@(Tree Program t), p:ps) = (Tree Program (insertAt (p+1) blankAssignment t), p:ps)
 
-replaceWithTerm :: Tree Token -> Zipper Token -> Zipper Token
+replaceWithTerm :: Token -> Zipper Token -> Zipper Token
 replaceWithTerm t = try (replaceWithTerm' t)
 
-replaceWithTermAndSelectNext :: Tree Token -> Zipper Token -> Zipper Token
+replaceWithTermAndSelectNext :: Token -> Zipper Token -> Zipper Token
 replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
 
-replaceWithTerm' :: Tree Token -> Zipper Token -> Maybe (Zipper Token)
-replaceWithTerm' t (x, p) = toMaybe (validateZipper replaced) replaced
-        where replaced = (replaceAtPoint t p x, p)
+replaceWithTerm' :: Token -> Zipper Token -> Maybe (Zipper Token)
+replaceWithTerm' t (x, p) = do replaced <- replaceAtPoint t p x
+                               if validateProgram replaced
+                               then return (replaced,p)
+                               else Nothing
 
-searchForNamedVariables :: Tree Token -> [Tree Token]
+searchForNamedVariables :: Token -> [Token]
 searchForNamedVariables = searchTree test
-        where test (Tree (IdentifierTerm _) []) = True
+        where test (IdentifierTerm _) = True
               test _ = False
 
 -- If arity is not well defined (i.e. final type is Unknown), this evaluates to
 -- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
 -- (which may be 0, for identifiers which refer to non-function values)
-arityOfIdentifier :: Token -> Tree Token -> Maybe Integer
+arityOfIdentifier :: Token -> Token -> Maybe Integer
 arityOfIdentifier token tree = findIdentifierDefinition token tree >>= f
-        where f :: Tree Token -> Maybe Integer
-              f (Tree FunctionTypeTerm [_, t]) = do n <- f t
-                                                    return (n+1)
-              f (Tree BoolTypeTerm []) = Just 0
-              f (Tree FunctionTerm [_, t, _]) = f t
-              f (Tree AssignmentTerm [_, t, _]) = f t
+        where f :: Token -> Maybe Integer
+              f (FunctionTypeTerm _ t) = fmap (+1) (f t)
+              -- f (FunctionTypeTerm _ t) = do n <- f t
+              --                               return (n+1)
+              f BoolTypeTerm = Just 0
+              f (FunctionTerm _ t _) = f t
+              f (AssignmentTerm _ t _) = f t
               f _ = Nothing
 
 -- to compute arity, we need to find the original definition of the term. this
 -- could be a function or it could be an assignment
-findIdentifierDefinition :: Token -> Tree Token -> Maybe (Tree Token)
+findIdentifierDefinition :: Token -> Token -> Maybe Token
 findIdentifierDefinition (IdentifierTerm id) tree = listToMaybe (searchTree test tree)
-        where test (Tree FunctionTerm [Tree (IdentifierTerm id') [], _, _]) = id == id'
-              test (Tree AssignmentTerm [Tree (IdentifierTerm id') [], _, _]) = id == id'
+        where test (FunctionTerm (IdentifierTerm id')  _ _) = id == id'
+              test (AssignmentTerm (IdentifierTerm id') _ _) = id == id'
               test  _ = False
 findIdentifierDefinition _ _ = Nothing
 
-functionCalls :: Tree Token -> [Tree Token]
-functionCalls t = concat [ fmap (app x) [0..(n (extractToken x))] | x <- searchForNamedVariables t]
+functionCalls :: Token -> [Token]
+functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- searchForNamedVariables t]
         where app x 0 = x
-              app x n = Tree ApplicationTerm [app x (n-1), blankUnknown]
+              app x n = ApplicationTerm (app x (n-1)) UnknownTerm
               n x = case arityOfIdentifier x t of
                 Just m -> m
                 Nothing -> 0
 
-standardTerms :: [Tree Token]
-standardTerms = [ blankTrue 
-                , blankFalse 
+standardTerms :: [Token]
+standardTerms = [ TrueTerm
+                , FalseTerm
                 , blankFunction
                 , blankConditional 
                 , blankApplication
                 , blankFunctionType 
-                , blankBoolType 
-                , blankUnknown ]
+                , BoolTypeTerm
+                , UnknownTerm ]
 
-allPossibleTerms :: Tree Token -> [Tree Token]
+allPossibleTerms :: Token -> [Token]
 allPossibleTerms t = functionCalls t ++ standardTerms
 
-termTypeChecks :: Zipper Token -> Tree Token -> Bool
+termTypeChecks :: Zipper Token -> Token -> Bool
 termTypeChecks z t = isJust (replaceWithTerm' t z)
 
-possibleTerms :: Zipper Token -> [Tree Token]
+possibleTerms :: Zipper Token -> [Token]
 possibleTerms (t,p) = filter (termTypeChecks (t,p)) (allPossibleTerms t)
 
 updateSymbolTable :: Zipper Token -> T.Text -> SymbolTable -> Maybe SymbolTable
-updateSymbolTable z t s = case tokenUnderCursor z of
-        IdentifierTerm i -> Just (M.insert i t s)
+updateSymbolTable (t',p) t s = case treeUnderCursor p t' of
+        Just (IdentifierTerm i) -> Just (M.insert i t s)
         _ -> Nothing

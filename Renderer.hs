@@ -57,7 +57,7 @@ generatePathMap []     x     n                          = error ("unmatched patt
                                                              ++ ", "
                                                              ++ show x ++ show n)
 
-termToPathMap :: Renderable a => SymbolTable -> Int -> Tree a -> PathMap
+termToPathMap :: (Tree a, Renderable a) => SymbolTable -> Int -> a -> PathMap
 termToPathMap s n t = generatePathMap [] (0,0) layoutPathsOnly
         where removeNonPath (Location p) = Just (Location p)
               removeNonPath _            = Nothing
@@ -68,14 +68,14 @@ highlightAtPath p = reAnnotate (\q -> case q of
                                         Location r -> if r == p then Highlight else q
                                         _ -> q)
 
-renderTerm'' :: Renderable a => Path -> SymbolTable -> RenderContext a -> Tree a -> Doc Marking
-renderTerm'' path s c (Tree t ts) = annotate (Location path) (renderTerm' s c t renderedChildren)
-        where renderedChildren = [renderTerm'' (path ++ [p]) s (RenderContext t p) t' | (p,t') <- zip [0..] ts]
+renderTerm'' :: (Tree a, Renderable a) => Path -> SymbolTable -> RenderContext a -> a -> Doc Marking
+renderTerm'' path s c t = annotate (Location path) (renderTerm' s c t renderedChildren)
+        where renderedChildren = [renderTerm'' (path ++ [p]) s (RenderContext t p) t' | (p,t') <- zip [0..] (children t)]
 
-renderZipper :: Renderable a => SymbolTable -> Zipper a -> Doc Marking
-renderZipper s (t, p) = highlightAtPath p (renderTerm'' [] s NoRenderContext t)
+renderZipper :: (Tree a, Renderable a) => SymbolTable -> a -> Path -> Doc Marking
+renderZipper s t p = highlightAtPath p (renderTerm'' [] s NoRenderContext t)
 
-renderTerm :: Renderable a => SymbolTable -> RenderContext a -> Tree a -> Doc Marking
+renderTerm :: (Tree a, Renderable a) => SymbolTable -> RenderContext a -> a -> Doc Marking
 renderTerm = renderTerm'' []
 
 -- below is generic plumbing to transform a Doc Marking into a Widget for Brick

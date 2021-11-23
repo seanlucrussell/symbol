@@ -54,10 +54,10 @@ import qualified Data.Set as S
 --   render :: StateData -> ExtraInfo -> a
 -- ? or maybe we need to be clearer about what info there is that could be
 -- rendered. e.g. have a diff data structure for it:
---   S = S SymbolTable (Zipper Token) Position (Maybe ([Tree Token], Int))
+--   S = S SymbolTable (Zipper Token) Position (Maybe ([Token], Int))
 -- or even
 --   MainWindowData = MainWindowData SymbolTable (Zipper Token) Position
---   SelectionPopupData = SelectionPopupData [Tree Token] Int
+--   SelectionPopupData = SelectionPopupData [Token] Int
 --   AppData = MainWindow MainWindowData | Popup SelectionPopupData MainWindowData
 -- so then what am I really saving by having this new model for managing app
 -- transformations? It does seem slightly simpler, but I end up replicating bits
@@ -69,7 +69,7 @@ import qualified Data.Set as S
 
 -- symbol specific stuff
 type SymbolState = (SymbolTable, Zipper Token, Position, Maybe PopupData)
-type PopupData = ([Tree Token], Int)
+type PopupData = ([Token], Int)
 
 data StateData a = SymbolAppInput a => StateData SymbolState (Maybe (a -> (State (StateData a)) ())) (StateData a)
 
@@ -88,9 +88,9 @@ transitionHome f = do changeUIState homeHandler
 
 setName :: SymbolAppInput a => String -> (State (StateData a)) ()
 setName s = do changeUIState (addingNameHandler s)
-               z <- getZipper
-               if tokenUnderCursor z == UnknownTerm
-               then applyToZipper (replaceWithTerm (validIdentifier (zipperToTerm z)))
+               (t,p) <- getZipper
+               if treeUnderCursor p t == (Just UnknownTerm)
+               then applyToZipper (replaceWithTerm (validIdentifier t))
                else return ()
                z' <- getZipper
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
@@ -108,7 +108,7 @@ applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
 applyToPosition :: SymbolAppInput b => (Position -> Position) -> (State (StateData b)) ()
 applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
 
-setPopup :: SymbolAppInput b => Maybe ([Tree Token], Int) -> (State (StateData b)) ()
+setPopup :: SymbolAppInput b => Maybe ([Token], Int) -> (State (StateData b)) ()
 setPopup x = applyToSymbolState (\(s, z, p, _) -> (s, z, p, x))
 
 
@@ -124,7 +124,7 @@ getSymbolTable :: SymbolAppInput b => (State (StateData b)) SymbolTable
 getSymbolTable = do (s, _, _, _) <- getSymbolState
                     return s
 
-getTerm :: SymbolAppInput b => (State (StateData b)) (Tree Token)
+getTerm :: SymbolAppInput b => (State (StateData b)) (Token)
 getTerm = do (t, _) <- getZipper
              return t
 
@@ -191,7 +191,7 @@ pathFromPosition n = do pathMap <- getPathMap n
                         position <- getPosition
                         return (Data.Map.lookup position pathMap)
 
-selectTerm :: SymbolAppInput b => [Tree Token] -> Int -> (State (StateData b)) ()
+selectTerm :: SymbolAppInput b => [Token] -> Int -> (State (StateData b)) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
@@ -216,7 +216,7 @@ addingNameHandler s i = f s (extractInput i)
               f s   Del       = setName (Prelude.init s)
               f _   _         = return ()
 
-selectingTermHandler :: SymbolAppInput a => [Tree Token] -> Int -> (a -> (State (StateData a)) ())
+selectingTermHandler :: SymbolAppInput a => [Token] -> Int -> (a -> (State (StateData a)) ())
 selectingTermHandler l n i = f (extractInput i)
         where f (Key 'p')  = exitPopup
               f Enter      = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup

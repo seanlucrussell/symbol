@@ -5,41 +5,57 @@ module SymbolSerialize
    where
 
 import SymbolData
-import AST
+import AST hiding (Tree)
 
 import qualified Data.Map
 import qualified Data.Text
 import Text.Read
 import Text.ParserCombinators.Parsec
 
-type S = (SymbolTable, Tree Token, Path)
+data Tree a = Tree a [Tree a]
+
+type S = (SymbolTable, Token, Path)
 
 tokenToString :: Token -> String
 tokenToString (IdentifierTerm n) = "Id:" ++ show n
-tokenToString (FunctionTerm    ) = "Fn"
-tokenToString (ApplicationTerm ) = "App"
+tokenToString (FunctionTerm _ _ _) = "Fn"
+tokenToString (ApplicationTerm _ _) = "App"
 tokenToString (TrueTerm        ) = "T"
 tokenToString (FalseTerm       ) = "F"
-tokenToString (ConditionalTerm ) = "If"
+tokenToString (ConditionalTerm _ _ _) = "If"
 tokenToString (UnknownTerm     ) = "Unknown"
-tokenToString (FunctionTypeTerm) = "FnT"
+tokenToString (FunctionTypeTerm _ _) = "FnT"
 tokenToString (BoolTypeTerm    ) = "BoolT"
-tokenToString (AssignmentTerm  ) = "Assign"
-tokenToString (Program         ) = "Prog"
+tokenToString (AssignmentTerm  _ _ _) = "Assign"
+tokenToString (Program         _ ) = "Prog"
 
-stringToToken :: String -> Maybe Token
-stringToToken ('I':'d':':':n) = readMaybe n >>= (Just . IdentifierTerm)
-stringToToken "Fn"            = Just FunctionTerm     
-stringToToken "App"           = Just ApplicationTerm  
-stringToToken "T"             = Just TrueTerm         
-stringToToken "F"             = Just FalseTerm        
-stringToToken "If"            = Just ConditionalTerm  
-stringToToken "Unknown"       = Just UnknownTerm      
-stringToToken "FnT"           = Just FunctionTypeTerm 
-stringToToken "BoolT"         = Just BoolTypeTerm     
-stringToToken "Assign"        = Just AssignmentTerm   
-stringToToken "Prog"          = Just Program          
-stringToToken _               = Nothing
+treeToToken :: Tree String -> Maybe Token
+treeToToken (Tree ('I':'d':':':n) []     ) = readMaybe n >>= (Just . IdentifierTerm)
+treeToToken (Tree "Fn"            [a,b,c]) = do a' <- treeToToken a
+                                                b' <- treeToToken b
+                                                c' <- treeToToken c
+                                                return (FunctionTerm a' b' c')
+treeToToken (Tree "App"           [a,b]  ) = do a' <- treeToToken a
+                                                b' <- treeToToken b
+                                                return (ApplicationTerm a' b')
+treeToToken (Tree "If"            [a,b,c]) = do a' <- treeToToken a
+                                                b' <- treeToToken b
+                                                c' <- treeToToken c
+                                                return (ConditionalTerm a' b' c')
+treeToToken (Tree "FnT"           [a,b]  ) = do a' <- treeToToken a
+                                                b' <- treeToToken b
+                                                return (FunctionTypeTerm a' b')
+treeToToken (Tree "Assign"        [a,b,c]) = do a' <- treeToToken a
+                                                b' <- treeToToken b
+                                                c' <- treeToToken c
+                                                return (AssignmentTerm a' b' c')
+treeToToken (Tree "Prog"          ts     ) = do ts' <- sequence (fmap treeToToken ts)
+                                                return (Program ts')
+treeToToken (Tree "BoolT"         []     ) = Just BoolTypeTerm     
+treeToToken (Tree "T"             []     ) = Just TrueTerm         
+treeToToken (Tree "F"             []     ) = Just FalseTerm        
+treeToToken (Tree "Unknown"       []     ) = Just UnknownTerm      
+treeToToken _                              = Nothing
 
 -- format:
 --  (Data
@@ -66,8 +82,8 @@ tableToTree :: SymbolTable -> Tree String
 tableToTree table = Tree "SymbolTable" (fmap keyValToTree (Data.Map.toList table))
         where keyValToTree (k,v) = Tree "Key" [Tree (show k) [], Tree (Data.Text.unpack v) []]
 
-programToTree :: Tree Token -> Tree String
-programToTree (Tree token subtrees) = Tree (tokenToString token) (fmap programToTree subtrees)
+programToTree :: Token -> Tree String
+programToTree token = Tree (tokenToString token) (fmap programToTree (children token))
 
 pathToTree :: Path -> Tree String
 pathToTree path = Tree "Path" (fmap intToTree path)
@@ -117,10 +133,11 @@ treeToTable (Tree "SymbolTable" subtrees) = do keyValueList <- mapM treeToKeyVal
 treeToTable _ = Nothing
 
 -- need to make sure program is valid
-treeToProgram :: Tree String -> Maybe (Tree Token)
-treeToProgram (Tree string subtrees) = do token <- stringToToken string
-                                          subPrograms <- mapM treeToProgram subtrees
-                                          return (Tree token subPrograms)
+treeToProgram :: Tree String -> Maybe Token
+treeToProgram = treeToToken
+-- treeToProgram (Tree string subtrees) = do token <- treeToToken string
+--                                           subPrograms <- mapM treeToProgram subtrees
+--                                           return (Tree token subPrograms)
 
 -- path should point to a valid location in the program
 -- every symbol used in program should be defined in symbol table

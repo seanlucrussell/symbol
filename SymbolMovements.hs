@@ -21,7 +21,9 @@ import Control.Applicative
 -- movements: the underlying ast doesn't change, just the position in it
 
 overUnknownTerm :: Zipper Token -> Bool
-overUnknownTerm = (== UnknownTerm) . tokenUnderCursor
+overUnknownTerm (t,p) = case treeUnderCursor p t of
+                Just t' -> t' == UnknownTerm
+                Nothing -> False
 
 nextHole' :: Zipper Token -> Maybe (Zipper Token)
 nextHole' z = nextHole'' overUnknownTerm z

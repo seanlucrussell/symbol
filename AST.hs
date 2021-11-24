@@ -9,7 +9,6 @@ module AST
   , replaceAtIndex
   , replaceAtPoint
   , validatePath
-  , Zipper
   ) where
 import qualified Data.Text as T
 import Data.Maybe
@@ -19,10 +18,6 @@ class Tree a where
   children :: a -> [a]
   update :: a -> [a] -> Maybe a
 type Path = [Int]
-
--- ZIPPER --
-type Zipper a = (a, Path)
--- ZIPPER --
 
 validatePath :: Tree a => a -> Path -> Bool
 validatePath t [] = False

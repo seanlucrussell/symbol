@@ -32,21 +32,25 @@ findAllIds :: Token -> [Int]
 findAllIds (IdentifierTerm i) = [i]
 findAllIds t = join (fmap findAllIds (children t))
 
-insertBefore :: Zipper Token -> Zipper Token
-insertBefore = error "Need to redefine this"
--- insertBefore (t'@(Tree Program t), p:ps) = (Tree Program (insertAt p blankAssignment t), p:ps)
+insertBefore :: (Token, Path) -> (Token, Path)
+insertBefore (t, p:ps) = case newToken of
+                Just t' -> (t', 1+p:ps)
+                Nothing -> (t, p:ps)
+        where newToken = update t (insertAt p blankAssignment (children t))
 
-insertAfter :: Zipper Token -> Zipper Token
-insertAfter = error "Need to redefine this"
--- insertAfter (t'@(Tree Program t), p:ps) = (Tree Program (insertAt (p+1) blankAssignment t), p:ps)
+insertAfter :: (Token, Path) -> (Token, Path)
+insertAfter (t, p:ps) = case newToken of
+                Just t' -> (t', p:ps)
+                Nothing -> (t, p:ps)
+        where newToken = update t (insertAt (p+1) blankAssignment (children t))
 
-replaceWithTerm :: Token -> Zipper Token -> Zipper Token
-replaceWithTerm t = try (replaceWithTerm' t)
+replaceWithTerm :: Token -> (Token, Path) -> (Token, Path)
+replaceWithTerm replacement = try (replaceWithTerm' replacement)
 
-replaceWithTermAndSelectNext :: Token -> Zipper Token -> Zipper Token
-replaceWithTermAndSelectNext t = try (replaceWithTerm' t >=> (nextHole' <!> return))
+replaceWithTermAndSelectNext :: Token -> (Token, Path) -> (Token, Path)
+replaceWithTermAndSelectNext replacement = try (replaceWithTerm' replacement >=> (nextHole' <!> return))
 
-replaceWithTerm' :: Token -> Zipper Token -> Maybe (Zipper Token)
+replaceWithTerm' :: Token -> (Token, Path) -> Maybe ((Token, Path))
 replaceWithTerm' t (x, p) = do replaced <- replaceAtPoint t p x
                                if validateProgram replaced
                                then return (replaced,p)
@@ -111,13 +115,13 @@ standardTerms = [ TrueTerm
 allPossibleTerms :: Token -> [Token]
 allPossibleTerms t = functionCalls t ++ standardTerms
 
-termTypeChecks :: Zipper Token -> Token -> Bool
-termTypeChecks z t = isJust (replaceWithTerm' t z)
+termTypeChecks :: Token -> Path -> Token -> Bool
+termTypeChecks t' p t = isJust (replaceWithTerm' t (t',p))
 
-possibleTerms :: Zipper Token -> [Token]
-possibleTerms (t,p) = filter (termTypeChecks (t,p)) (allPossibleTerms t)
+possibleTerms :: (Token, Path) -> [Token]
+possibleTerms (t,p) = filter (termTypeChecks t p) (allPossibleTerms t)
 
-updateSymbolTable :: Zipper Token -> T.Text -> SymbolTable -> Maybe SymbolTable
+updateSymbolTable :: (Token, Path) -> T.Text -> SymbolTable -> Maybe SymbolTable
 updateSymbolTable (t',p) t s = case treeUnderCursor p t' of
         Just (IdentifierTerm i) -> Just (M.insert i t s)
         _ -> Nothing

@@ -54,9 +54,9 @@ import qualified Data.Set as S
 --   render :: StateData -> ExtraInfo -> a
 -- ? or maybe we need to be clearer about what info there is that could be
 -- rendered. e.g. have a diff data structure for it:
---   S = S SymbolTable (Zipper Token) Position (Maybe ([Token], Int))
+--   S = S SymbolTable ((Token, Path)) Position (Maybe ([Token], Int))
 -- or even
---   MainWindowData = MainWindowData SymbolTable (Zipper Token) Position
+--   MainWindowData = MainWindowData SymbolTable ((Token, Path)) Position
 --   SelectionPopupData = SelectionPopupData [Token] Int
 --   AppData = MainWindow MainWindowData | Popup SelectionPopupData MainWindowData
 -- so then what am I really saving by having this new model for managing app
@@ -68,7 +68,7 @@ import qualified Data.Set as S
 -- can commit and revert changes as batches.
 
 -- symbol specific stuff
-type SymbolState = (SymbolTable, Zipper Token, Position, Maybe PopupData)
+type SymbolState = (SymbolTable, (Token, Path), Position, Maybe PopupData)
 type PopupData = ([Token], Int)
 
 data StateData a = SymbolAppInput a => StateData SymbolState (Maybe (a -> (State (StateData a)) ())) (StateData a)
@@ -82,7 +82,7 @@ data StateData a = SymbolAppInput a => StateData SymbolState (Maybe (a -> (State
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
 
-transitionHome :: SymbolAppInput a => (Zipper Token -> Zipper Token) -> (State (StateData a)) ()
+transitionHome :: SymbolAppInput a => ((Token, Path) -> (Token, Path)) -> (State (StateData a)) ()
 transitionHome f = do changeUIState homeHandler
                       applyToZipper f
 
@@ -96,14 +96,17 @@ setName s = do changeUIState (addingNameHandler s)
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
 
 whenOverIdentifier :: SymbolAppInput b => (State (StateData b)) a -> (State (StateData b)) a -> (State (StateData b)) a
-whenOverIdentifier yes no = do z <- getZipper
-                               if overIdentifier z then yes else no
+whenOverIdentifier yes no = do (t,p) <- getZipper
+                               if overIdentifier t p then yes else no
 
 applyToSymbolTable :: SymbolAppInput b => (SymbolTable -> SymbolTable) -> (State (StateData b)) ()
 applyToSymbolTable f = applyToSymbolState (\(s, z, p, x) -> ((f s), z, p, x))
 
-applyToZipper :: SymbolAppInput b => (Zipper Token -> Zipper Token) -> (State (StateData b)) ()
+applyToZipper :: SymbolAppInput b => ((Token, Path) -> (Token, Path)) -> (State (StateData b)) ()
 applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
+
+applyMovement :: SymbolAppInput b => (Token -> Path -> Path) -> (State (StateData b)) ()
+applyMovement f = applyToSymbolState (\(s, (t,p'), p, x) -> (s, (t,(f t p')), p, x))
 
 applyToPosition :: SymbolAppInput b => (Position -> Position) -> (State (StateData b)) ()
 applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
@@ -132,7 +135,7 @@ getPath :: SymbolAppInput b => (State (StateData b)) Path
 getPath = do (_, p) <- getZipper
              return p
 
-getZipper :: SymbolAppInput b => (State (StateData b)) (Zipper Token)
+getZipper :: SymbolAppInput b => (State (StateData b)) ((Token, Path))
 getZipper = do (_, z, _, _) <- getSymbolState
                return z
 
@@ -238,21 +241,21 @@ languageModifier i = f (extractInput i) (extractWidth i)
 
 homeHandler :: SymbolAppInput a => (a -> (State (StateData a)) ())
 homeHandler i = f (extractInput i) (extractWidth i)
-        where f (Key 'n')  n = applyToZipper nextHole >> updatePosition n
-              f (Key 'N')  n = applyToZipper previousHole >> updatePosition n
-              f (Key '\t') n = applyToZipper nextLeaf >> updatePosition n
-              f BackTab    n = applyToZipper prevLeaf >> updatePosition n
-              f (Key 'j')  n = applyToZipper selectFirst >> updatePosition n
-              f (Key 'l')  n = applyToZipper selectNext >> updatePosition n
-              f (Key 'h')  n = applyToZipper selectPrev >> updatePosition n
-              f (Key 'k')  n = applyToZipper goUp >> updatePosition n
+        where -- f (Key 'n')  n = applyMovement nextHole >> updatePosition n
+              -- f (Key 'N')  n = applyMovement previousHole >> updatePosition n
+              -- f (Key '\t') n = applyToZipper nextLeaf >> updatePosition n
+              -- f BackTab    n = applyToZipper prevLeaf >> updatePosition n
+              f (Key 'j')  n = applyMovement selectFirst >> updatePosition n
+              f (Key 'l')  n = applyMovement selectNext >> updatePosition n
+              f (Key 'h')  n = applyMovement selectPrev >> updatePosition n
+              f (Key 'k')  n = applyMovement goUp >> updatePosition n
               f (Key 'c')  _ = commit
               f (Key 'u')  _ = revert
               f Esc        _ = terminate
               f UpArrow    n = applyToPosition selectUp >> updatePath n
               f DownArrow  n = applyToPosition selectDown >> updatePath n
-              f RightArrow n = applyToZipper nextLeaf >> updatePosition n
-              f LeftArrow  n = applyToZipper prevLeaf >> updatePosition n
+              -- f RightArrow n = applyMovement nextLeaf >> updatePosition n
+              -- f LeftArrow  n = applyMovement prevLeaf >> updatePosition n
               f k          n = languageModifier i
               -- f LeftArrow n = applyToPosition selectLeft >> updatePath n
               -- f RightArrow n = applyToPosition selectRight >> updatePath n

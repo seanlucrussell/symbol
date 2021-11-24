@@ -21,9 +21,9 @@ findAllIds (IdentifierTerm i) = [i]
 findAllIds t = join (fmap findAllIds (children t))
 
 -- Includes places where the identifier is still an UnknownToken
-overIdentifier :: Zipper Token -> Bool
-overIdentifier (t,p) = case treeUnderCursor p' t' of
+overIdentifier :: Token -> Path -> Bool
+overIdentifier t p = case treeUnderCursor p' t of
         Just (FunctionTerm _ _ _) -> Prelude.last p == 0
         Just (AssignmentTerm _ _ _) -> Prelude.last p == 0
         _ -> False
-      where (t',p') = goUp (t,p)
+      where p' = goUp t p

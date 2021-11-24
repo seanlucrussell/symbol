@@ -4,7 +4,7 @@
 module BrickRenderer
   ( zipperToWidget
   , renderDoc
-  , Name (ZipperName, PopupName)
+  , Name (MainWindowName, PopupName)
   , popup
   , drawUI
   , AppInput
@@ -84,15 +84,15 @@ renderDoc d = Brick.Widget Brick.Fixed Brick.Fixed
   (do ctx <- Brick.getContext
       Brick.render $ vBox $ renderStack $ treeToStack $ treeForm $ layout (ctx^.Brick.availWidthL) d)
 
-data Name = ZipperName | PopupName deriving (Eq, Show)
+data Name = MainWindowName | PopupName deriving (Eq, Show)
 
 instance Ord Name where
-  ZipperName <= PopupName = True
-  PopupName <= ZipperName = False
+  MainWindowName <= PopupName = True
+  PopupName <= MainWindowName = False
   _ <= _ = True
 
-zipperToWidget :: (Tree a, Renderable a) => SymbolTable -> Zipper a -> Widget Name
-zipperToWidget s (t,p) = Brick.reportExtent ZipperName (renderDoc (renderZipper s t p))
+zipperToWidget :: (Tree a, Renderable a) => SymbolTable -> (a, Path) -> Widget Name
+zipperToWidget s (t,p) = Brick.reportExtent MainWindowName (renderDoc (renderZipper s t p))
 
 drawUI :: StateData AppInput -> [Widget Name]
 drawUI (StateData (s, z, x, p) u _) = (case p of

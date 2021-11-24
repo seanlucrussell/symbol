@@ -54,9 +54,9 @@ serializeToFile f (StateData (table, (program, path), _, _) _ _) = writeFile f (
 
 appEvent :: String -> StateData AppInput -> BrickEvent n e -> EventM Name (Next (StateData AppInput))
 appEvent file d (VtyEvent (EvKey e [] )) =
-             do mExtent <- Brick.Main.lookupExtent ZipperName
+             do mExtent <- Brick.Main.lookupExtent MainWindowName
                 case mExtent of
-                  Nothing -> error "Couldn't find main Zipper display widget!"
+                  Nothing -> error "Couldn't find main window display widget!"
                   Just (Extent _ _ (width, _) _) ->
                         let next = S.execState (stateHandler (e,width)) d in
                         case next of 

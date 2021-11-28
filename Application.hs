@@ -89,7 +89,7 @@ transitionHome f = do changeUIState homeHandler
 setName :: SymbolAppInput a => String -> (State (StateData a)) ()
 setName s = do changeUIState (addingNameHandler s)
                (t,p) <- getZipper
-               if treeUnderCursor p t == (Just UnknownTerm)
+               if treeUnderCursor p t == (Just Unknown)
                then applyToZipper (replaceWithTerm (validIdentifier t))
                else return ()
                z' <- getZipper
@@ -213,7 +213,7 @@ addingNameHandler s i = f s (extractInput i)
               f " " (Key k)   = setName [k]
               f s   (Key k)   = setName (s ++ [k])
               f " " Enter     = return ()
-              f s   Enter     = transitionHome nextHole
+              f s   Enter     = transitionHome id
               f []  Del       = return ()
               f [_] Del       = setName " "
               f s   Del       = setName (Prelude.init s)
@@ -222,7 +222,7 @@ addingNameHandler s i = f s (extractInput i)
 selectingTermHandler :: SymbolAppInput a => [Token] -> Int -> (a -> (State (StateData a)) ())
 selectingTermHandler l n i = f (extractInput i)
         where f (Key 'p')  = exitPopup
-              f Enter      = transitionHome (nextHole . replaceWithTerm (l!!n)) >> exitPopup
+              f Enter      = transitionHome (id . replaceWithTerm (l!!n)) >> exitPopup
               f (Key 'k')  = selectTerm l (n-1)
               f (Key 'j')  = selectTerm l (n+1)
               f UpArrow    = selectTerm l (n-1)

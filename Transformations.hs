@@ -29,7 +29,7 @@ findValidAssignmentId :: Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
 
 findAllIds :: Token -> [Int]
-findAllIds (IdentifierTerm i) = [i]
+findAllIds (Identifier i) = [i]
 findAllIds t = join (fmap findAllIds (children t))
 
 insertBefore :: (Token, Path) -> (Token, Path)
@@ -61,18 +61,18 @@ searchForNamedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
 
 allIdentifierDefinitions :: Token -> [Token]
 allIdentifierDefinitions tree = searchTree test tree
-        where test (FunctionTerm (IdentifierTerm _)  _ _) = True
-              test (AssignmentTerm (IdentifierTerm _) _ _) = True
+        where test (Function (Identifier _)  _ _) = True
+              test (Assignment (Identifier _) _ _) = True
               test  _ = False
 
 extractIdentifier :: Token -> Maybe Token
-extractIdentifier (FunctionTerm i _ _) = Just i
-extractIdentifier (AssignmentTerm i _ _) = Just i
+extractIdentifier (Function i _ _) = Just i
+extractIdentifier (Assignment i _ _) = Just i
 extractIdentifier _ = Nothing
 
 extractType :: Token -> Maybe Token
-extractType (FunctionTerm _ t _) = Just t
-extractType (AssignmentTerm _ t _) = Just t
+extractType (Function _ t _) = Just t
+extractType (Assignment _ t _) = Just t
 extractType _ = Nothing
 
 -- If arity is not well defined (i.e. final type is Unknown), this evaluates to
@@ -81,23 +81,23 @@ extractType _ = Nothing
 arityOfIdentifier :: Token -> Token -> Maybe Integer
 arityOfIdentifier token tree = findIdentifierDefinition token tree >>= extractType >>= f
         where f :: Token -> Maybe Integer
-              f (FunctionTypeTerm _ t) = fmap (+1) (f t)
-              f BoolTypeTerm = Just 0
+              f (FunctionType _ t) = fmap (+1) (f t)
+              f BoolType = Just 0
               f _ = Nothing
 
 -- to compute arity, we need to find the original definition of the term. this
 -- could be a function or it could be an assignment
 findIdentifierDefinition :: Token -> Token -> Maybe Token
-findIdentifierDefinition (IdentifierTerm id) tree = listToMaybe (searchTree test tree)
-        where test (FunctionTerm (IdentifierTerm id')  _ _) = id == id'
-              test (AssignmentTerm (IdentifierTerm id') _ _) = id == id'
+findIdentifierDefinition (Identifier id) tree = listToMaybe (searchTree test tree)
+        where test (Function (Identifier id')  _ _) = id == id'
+              test (Assignment (Identifier id') _ _) = id == id'
               test  _ = False
 findIdentifierDefinition _ _ = Nothing
 
 functionCalls :: Token -> [Token]
 functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- searchForNamedVariables t]
         where app x 0 = x
-              app x n = ApplicationTerm (app x (n-1)) UnknownTerm
+              app x n = Application (app x (n-1)) Unknown
               n x = case arityOfIdentifier x t of
                 Just m -> m
                 Nothing -> 0
@@ -109,8 +109,8 @@ standardTerms = [ TrueTerm
                 , blankConditional 
                 , blankApplication
                 , blankFunctionType 
-                , BoolTypeTerm
-                , UnknownTerm ]
+                , BoolType
+                , Unknown ]
 
 allPossibleTerms :: Token -> [Token]
 allPossibleTerms t = functionCalls t ++ standardTerms
@@ -123,5 +123,5 @@ possibleTerms (t,p) = filter (termTypeChecks t p) (allPossibleTerms t)
 
 updateSymbolTable :: (Token, Path) -> T.Text -> SymbolTable -> Maybe SymbolTable
 updateSymbolTable (t',p) t s = case treeUnderCursor p t' of
-        Just (IdentifierTerm i) -> Just (M.insert i t s)
+        Just (Identifier i) -> Just (M.insert i t s)
         _ -> Nothing

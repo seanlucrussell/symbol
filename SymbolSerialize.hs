@@ -17,36 +17,36 @@ data Tree a = Tree a [Tree a]
 type S = (SymbolTable, Token, Path)
 
 tokenToTree :: Token -> Tree String
-tokenToTree (IdentifierTerm n) = Tree ("Id:" ++ show n) []
-tokenToTree (FunctionTerm a b c) = Tree "Fn" (fmap tokenToTree [a,b,c])
-tokenToTree (ApplicationTerm a b) = Tree "App" (fmap tokenToTree [a,b])
+tokenToTree (Identifier n) = Tree ("Id:" ++ show n) []
+tokenToTree (Function a b c) = Tree "Fn" (fmap tokenToTree [a,b,c])
+tokenToTree (Application a b) = Tree "App" (fmap tokenToTree [a,b])
 tokenToTree TrueTerm         = Tree "T" []
 tokenToTree FalseTerm        = Tree "F" []
-tokenToTree (ConditionalTerm a b c) = Tree "If" (fmap tokenToTree [a,b,c])
-tokenToTree UnknownTerm      = Tree "Unknown" []
-tokenToTree (FunctionTypeTerm a b) = Tree "FnT" (fmap tokenToTree [a,b])
-tokenToTree BoolTypeTerm     = Tree "BoolT" []
-tokenToTree (AssignmentTerm  a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
+tokenToTree (Conditional a b c) = Tree "If" (fmap tokenToTree [a,b,c])
+tokenToTree Unknown      = Tree "Unknown" []
+tokenToTree (FunctionType a b) = Tree "FnT" (fmap tokenToTree [a,b])
+tokenToTree BoolType     = Tree "BoolT" []
+tokenToTree (Assignment  a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
 tokenToTree (Program         ts ) = Tree "Prog" (fmap tokenToTree ts)
 
 treeToToken :: Tree String -> Maybe Token
-treeToToken (Tree ('I':'d':':':n) []) = readMaybe n >>= (Just . IdentifierTerm)
+treeToToken (Tree ('I':'d':':':n) []) = readMaybe n >>= (Just . Identifier)
 treeToToken (Tree "Fn"            ts) = do [a,b,c] <- mapM treeToToken ts
-                                           return (FunctionTerm a b c)
+                                           return (Function a b c)
 treeToToken (Tree "App"           ts) = do [a,b] <- mapM treeToToken ts
-                                           return (ApplicationTerm a b)
+                                           return (Application a b)
 treeToToken (Tree "If"            ts) = do [a,b,c] <- mapM treeToToken ts
-                                           return (ConditionalTerm a b c)
+                                           return (Conditional a b c)
 treeToToken (Tree "FnT"           ts) = do [a,b] <- mapM treeToToken ts
-                                           return (FunctionTypeTerm a b)
+                                           return (FunctionType a b)
 treeToToken (Tree "Assign"        ts) = do [a,b,c] <- mapM treeToToken ts
-                                           return (AssignmentTerm a b c)
+                                           return (Assignment a b c)
 treeToToken (Tree "Prog"          ts) = do ts' <- mapM treeToToken ts
                                            return (Program ts')
-treeToToken (Tree "BoolT"         []) = Just BoolTypeTerm     
+treeToToken (Tree "BoolT"         []) = Just BoolType     
 treeToToken (Tree "T"             []) = Just TrueTerm         
 treeToToken (Tree "F"             []) = Just FalseTerm        
-treeToToken (Tree "Unknown"       []) = Just UnknownTerm      
+treeToToken (Tree "Unknown"       []) = Just Unknown      
 treeToToken _                         = Nothing
 
 -- serializer
@@ -128,4 +128,4 @@ deserialize s = do tree <- deserializeTree s
                         
 
 -- test serializer:
--- putStrLn $ serialize ((Data.Map.fromList [(43466,"not"),(932005,"and")]), ((Tree Program [Tree AssignmentTerm [Tree (IdentifierTerm 4245) [], Tree UnknownTerm [], Tree TrueTerm []]]), [4,3,2,1,0,0,0,3]))
+-- putStrLn $ serialize ((Data.Map.fromList [(43466,"not"),(932005,"and")]), ((Tree Program [Tree Assignment [Tree (Identifier 4245) [], Tree Unknown [], Tree TrueTerm []]]), [4,3,2,1,0,0,0,3]))

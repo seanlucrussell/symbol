@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SymbolMovements
+module STLC.SymbolMovements
   ( previousHole
   , nextHole
   , previousHole'
@@ -7,7 +7,7 @@ module SymbolMovements
   ) where
 
 import AST
-import SymbolData
+import STLC.SymbolData
 import Utilities
 import Movements
 

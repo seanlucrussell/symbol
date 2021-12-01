@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module BrickRenderer
+module STLC.BrickRenderer
   ( zipperToWidget
   , renderDoc
   , Name (MainWindowName, PopupName)
@@ -11,11 +11,9 @@ module BrickRenderer
   ) where
 
 import AST
-import SymbolData
 import Utilities
 import Renderer
-import Application
-import SymbolRenderer
+import STLC.Application
 
 import Brick.Types (Widget)
 import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit, padLeft, padTop)
@@ -91,15 +89,15 @@ instance Ord Name where
   PopupName <= MainWindowName = False
   _ <= _ = True
 
-zipperToWidget :: (Tree a, Renderable a) => SymbolTable -> (a, Path) -> Widget Name
-zipperToWidget s (t,p) = Brick.reportExtent MainWindowName (renderDoc (renderZipper s t p))
-
 drawUI :: StateData AppInput -> [Widget Name]
 drawUI (StateData (s, z, x, p) u _) = (case p of
      Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s z]
 
-popup :: Position -> SymbolTable -> L.List Name Token -> Widget Name
+zipperToWidget :: (Tree a, Renderable a) => SymbolTable -> (a, Path) -> Widget Name
+zipperToWidget s (t,p) = Brick.reportExtent MainWindowName (renderDoc (renderZipper s t p))
+
+popup :: (Tree a, Renderable a) => Position -> SymbolTable -> L.List Name a -> Widget Name
 -- popup (x,y) s l = C.centerLayer $ B.borderWithLabel label $ hLimit 50 $ vBox
 popup (x,y) s l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
     where

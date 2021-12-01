@@ -9,15 +9,19 @@ module AST
   , replaceAtIndex
   , replaceAtPoint
   , validatePath
+  , SymbolTable
   ) where
 import qualified Data.Text as T
 import Data.Maybe
 import Control.Monad
+import qualified Data.Map
 
 class Tree a where
   children :: a -> [a]
   update :: a -> [a] -> Maybe a
 type Path = [Int]
+
+type SymbolTable = Data.Map.Map Int T.Text
 
 validatePath :: Tree a => a -> Path -> Bool
 validatePath t [] = False

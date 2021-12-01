@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Transformations 
+module STLC.Transformations 
   ( possibleTerms
   , insertBefore
   , insertAfter
@@ -9,11 +9,11 @@ module Transformations
 
 import AST
 import Movements
-import TypeChecker
+import STLC.TypeChecker
 import Utilities
 
-import SymbolData
-import SymbolMovements
+import STLC.SymbolData
+import STLC.SymbolMovements
 
 import qualified Data.Text as T
 import qualified Data.Map as M

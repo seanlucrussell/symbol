@@ -14,7 +14,6 @@ module Renderer
   ) where
 
 import AST
-import SymbolData
 import Utilities
 
 import Data.Text.Prettyprint.Doc

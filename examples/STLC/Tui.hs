@@ -4,14 +4,14 @@
 module Main where
 
 import AST
-import SymbolData
-import SymbolRenderer
+import STLC.SymbolData
+import STLC.SymbolRenderer
 import Movements
 import Renderer
-import Transformations
-import Application
-import BrickRenderer
-import SymbolSerialize
+import STLC.Transformations
+import STLC.Application
+import STLC.BrickRenderer
+import STLC.SymbolSerialize
 
 import Data.Text
 import Graphics.Vty

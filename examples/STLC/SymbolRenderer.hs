@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SymbolRenderer where
+module STLC.SymbolRenderer where
 
-import SymbolData
+import STLC.SymbolData
 import Renderer
 
 import qualified Data.Map as M

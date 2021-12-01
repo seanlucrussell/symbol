@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module TypeChecker
+module STLC.TypeChecker
   ( validateProgram ) where
 
-import SymbolData
+import STLC.SymbolData
 import AST
 import Utilities
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module SymbolData
+module STLC.SymbolData
   ( Token
     ( Identifier
     , Function
@@ -12,7 +12,6 @@ module SymbolData
     , BoolType
     , Assignment
     , Program)
-  , SymbolTable
   , blankFunction
   , blankConditional
   , blankApplication
@@ -65,5 +64,3 @@ blankApplication = Application Unknown Unknown
 blankAssignment = Assignment Unknown Unknown Unknown
 
 newAssignment i = Assignment (Identifier i) Unknown Unknown
-
-type SymbolTable = Map Int T.Text

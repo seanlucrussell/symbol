@@ -3,7 +3,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Application
+module STLC.Application
   ( stateHandler
   , homeHandler
   , StateData (StateData)
@@ -14,11 +14,11 @@ module Application
 import AST
 import Movements
 import Renderer
-import SymbolData
-import SymbolMovements
-import SymbolRenderer
-import SymbolUtilities
-import Transformations
+import STLC.SymbolData
+import STLC.SymbolMovements
+import STLC.SymbolRenderer
+import STLC.SymbolUtilities
+import STLC.Transformations
 import Utilities
 
 import Control.Monad.State

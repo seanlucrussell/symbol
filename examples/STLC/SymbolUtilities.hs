@@ -1,10 +1,10 @@
-module SymbolUtilities
+module STLC.SymbolUtilities
     ( validIdentifier
     , overIdentifier
     ) where
 
 import AST
-import SymbolData
+import STLC.SymbolData
 import Movements
 import Utilities
 

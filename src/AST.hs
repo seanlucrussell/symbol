@@ -59,6 +59,10 @@ select n t = findChild n (children t)
 searchTree :: Tree a => (a -> Bool) -> a -> [a]
 searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (children t))
 
+testAtPoint :: Tree a => (a -> Bool) -> a -> Path -> Maybe Bool
+testAtPoint test tree path = do subtree <- treeUnderCursor path tree
+                                return (test subtree)
+
 treeUnderCursor :: Tree a => Path -> a -> Maybe a
 treeUnderCursor [] t     = Just t
 treeUnderCursor (x:xs) t = do t' <- select x t

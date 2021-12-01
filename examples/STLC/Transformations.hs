@@ -5,6 +5,10 @@ module STLC.Transformations
   , insertAfter
   , updateSymbolTable
   , replaceWithTermAndSelectNext
+  , Transformation
+  , swapUp
+  , swapDown
+  , remove
   , replaceWithTerm) where
 
 import AST
@@ -25,8 +29,43 @@ import Control.Applicative
 
 {-# LANGUAGE XOverloadedStrings #-}
 
+type Transformation a = a -> Path -> Maybe (a, Path)
+
 findValidAssignmentId :: Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
+
+swapAdjacent :: Int -> [a] -> Maybe [a]
+swapAdjacent 0 (x:y:xs) = Just (y:x:xs)
+swapAdjacent n (x:xs) = do xs' <- swapAdjacent (n-1) xs
+                           return (x:xs')
+swapAdjacent _ _ = Nothing
+
+removeAtIndex :: Int -> [a] -> Maybe [a]
+removeAtIndex 0 (_:xs) = Just xs
+removeAtIndex n (x:xs) = do xs' <- removeAtIndex (n-1) xs
+                            return (x:xs')
+removeAtIndex _ _ = Nothing
+
+-- NOTE: THIS ONLY SWAPS AT TOP LEVEL! prolly needs new, more specific name to
+-- avoid confusion.
+swapDown :: Tree a => Transformation a
+swapDown t (p:ps) = do swapped <- swapAdjacent p (children t)
+                       newTree <- update t swapped
+                       return (newTree, p+1:ps)
+
+-- NOTE: THIS ONLY SWAPS AT TOP LEVEL! prolly needs new, more specific name to
+-- avoid confusion.
+swapUp :: Tree a => Transformation a
+swapUp t (p:ps) = do swapped <- swapAdjacent (p-1) (children t)
+                     newTree <- update t swapped
+                     return (newTree, p-1:ps)
+
+-- NOTE: THIS ONLY REMOVES AT TOP LEVEL! prolly needs new, more specific name to
+-- avoid confusion.
+remove :: Tree a => Transformation a
+remove t (p:ps) = do removed <- removeAtIndex p (children t)
+                     newTree <- update t removed
+                     return (newTree, [p-1])
 
 findAllIds :: Token -> [Int]
 findAllIds (Identifier i) = [i]
@@ -36,13 +75,13 @@ insertBefore :: (Token, Path) -> (Token, Path)
 insertBefore (t, p:ps) = case newToken of
                 Just t' -> (t', 1+p:ps)
                 Nothing -> (t, p:ps)
-        where newToken = update t (insertAt p blankAssignment (children t))
+   where newToken = update t (insertAt p (Assignment Unknown Unknown Unknown) (children t))
 
 insertAfter :: (Token, Path) -> (Token, Path)
 insertAfter (t, p:ps) = case newToken of
                 Just t' -> (t', p:ps)
                 Nothing -> (t, p:ps)
-        where newToken = update t (insertAt (p+1) blankAssignment (children t))
+   where newToken = update t (insertAt (p+1) (Assignment Unknown Unknown Unknown) (children t))
 
 replaceWithTerm :: Token -> (Token, Path) -> (Token, Path)
 replaceWithTerm replacement = try (replaceWithTerm' replacement)
@@ -105,10 +144,9 @@ functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- searchForNamedVariable
 standardTerms :: [Token]
 standardTerms = [ TrueTerm
                 , FalseTerm
-                , blankFunction
-                , blankConditional 
-                , blankApplication
-                , blankFunctionType 
+                , Function Unknown Unknown Unknown
+                , Conditional Unknown Unknown Unknown
+                , FunctionType Unknown Unknown
                 , BoolType
                 , Unknown ]
 

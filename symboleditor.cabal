@@ -44,7 +44,6 @@ executable SymbolEditor
         STLC.SymbolRenderer
         STLC.BrickRenderer
         STLC.SymbolSerialize
-        STLC.SymbolUtilities
         STLC.Transformations
         STLC.TypeChecker
   build-depends:       base >=4.12 && <4.13,

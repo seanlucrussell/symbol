@@ -17,15 +17,36 @@ import Renderer
 import STLC.SymbolData
 import STLC.SymbolMovements
 import STLC.SymbolRenderer
-import STLC.SymbolUtilities
 import STLC.Transformations
 import Utilities
+import STLC.TypeChecker
 
 import Control.Monad.State
 import Data.Map
 import Data.Maybe
 import Data.Text
 import qualified Data.Set as S
+
+-- try to apply a transformation, commiting if the transformation leaves the
+-- data structures in a valid state
+applyTransformation :: SymbolAppInput a => Transformation Token -> (State (StateData a)) ()
+applyTransformation t = applyToZipper (try f) >> commit
+        where f :: (Token, Path) -> Maybe (Token, Path)
+              f (tree, path) = do (tree', path') <- t tree path
+                                  if validateProgram tree' && validatePath tree' path'
+                                  then return (tree', path')
+                                  else Nothing
+
+-- like applyTransformation, but doesn't do checking, doesn't commit change.
+-- good for intermediate transitions where the underlying datastructures aren't
+-- sound
+applyTransformationPartial :: SymbolAppInput a => Transformation Token -> (State (StateData a)) ()
+applyTransformationPartial t = applyToZipper (try f)
+        where f :: (Token, Path) -> Maybe (Token, Path)
+              f (tree, path) = do (tree', path') <- t tree path
+                                  if validatePath tree' path'
+                                  then return (tree', path')
+                                  else Nothing
 
 -- cool idea: certain input events don't fully specify a new, valid state. e.g.
 -- naming a variable. you could have invalid variable names while editing. so
@@ -81,6 +102,11 @@ data StateData a = SymbolAppInput a => StateData SymbolState (Maybe (a -> (State
 --   revert changes when you hit enter if the parsed string ain't valid
 -- so maybe what we do is have some sort of different thing where we don't
 -- validate changes to the zipper until we commit all at once
+
+-- so we have a problem, where the data structure isn't getting validated at
+-- each step. this is instead happening in the transformations part of the
+-- codebase, which is probably the wrong way to do it? or maybe not? i'm not
+-- sure actually.
 
 transitionHome :: SymbolAppInput a => ((Token, Path) -> (Token, Path)) -> (State (StateData a)) ()
 transitionHome f = do changeUIState homeHandler
@@ -249,6 +275,9 @@ homeHandler i = f (extractInput i) (extractWidth i)
               f (Key 'l')  n = applyMovement selectNext >> updatePosition n
               f (Key 'h')  n = applyMovement selectPrev >> updatePosition n
               f (Key 'k')  n = applyMovement goUp >> updatePosition n
+              f (Key 's')  n = applyTransformation swapUp
+              f (Key 'S')  n = applyTransformation swapDown
+              f (Key 'x')  n = applyTransformation remove
               f (Key 'c')  _ = commit
               f (Key 'u')  _ = revert
               f Esc        _ = terminate

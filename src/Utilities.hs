@@ -3,6 +3,8 @@ module Utilities
         , (<!>)
         , applyAtIndex
         , changeAtIndex
+        , swapAdjacent
+        , removeAtIndex
         , firstNumberNotInList
         , insertAt
         , maybeToBool
@@ -57,6 +59,19 @@ safeListIndex :: Int -> [a] -> Maybe a
 safeListIndex 0 (x:xs) = Just x
 safeListIndex n [] = Nothing
 safeListIndex n (x:xs) = if n < 0 then Nothing else safeListIndex (n-1) xs
+
+
+swapAdjacent :: Int -> [a] -> Maybe [a]
+swapAdjacent 0 (x:y:xs) = Just (y:x:xs)
+swapAdjacent n (x:xs) = do xs' <- swapAdjacent (n-1) xs
+                           return (x:xs')
+swapAdjacent _ _ = Nothing
+
+removeAtIndex :: Int -> [a] -> Maybe [a]
+removeAtIndex 0 (_:xs) = Just xs
+removeAtIndex n (x:xs) = do xs' <- removeAtIndex (n-1) xs
+                            return (x:xs')
+removeAtIndex _ _ = Nothing
 
 firstNumberNotInList :: [Int] -> Int
 firstNumberNotInList l = f 0

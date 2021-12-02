@@ -43,7 +43,6 @@ replaceAtPoint t []     _  = Just t
 replaceAtPoint t (p:ps) t' = do child <- select p t'
                                 t'' <- replaceAtPoint t ps child
                                 replaceAtIndex t'' p t'
--- replaceAtPoint t (p:ps) = (replaceAtPoint t ps) >> replaceAtIndex t p
 
 isLeaf :: Tree a => a -> Bool
 isLeaf t = case children t of

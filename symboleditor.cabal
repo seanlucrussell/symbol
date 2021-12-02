@@ -21,6 +21,7 @@ library
         Movements
         Renderer
         Utilities
+        Transformations
   default-extensions:  CPP
   build-depends:       base >=4.12 && <4.13,
                        text,

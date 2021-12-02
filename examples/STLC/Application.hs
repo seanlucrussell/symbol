@@ -14,11 +14,13 @@ module STLC.Application
 import AST
 import Movements
 import Renderer
+import Transformations
+import Utilities
+
 import STLC.SymbolData
 import STLC.SymbolMovements
 import STLC.SymbolRenderer
 import STLC.Transformations
-import Utilities
 import STLC.TypeChecker
 
 import Control.Monad.State
@@ -116,7 +118,7 @@ setName :: SymbolAppInput a => String -> (State (StateData a)) ()
 setName s = do changeUIState (addingNameHandler s)
                (t,p) <- getZipper
                if treeUnderCursor p t == (Just Unknown)
-               then applyToZipper (replaceWithTerm (validIdentifier t))
+               then applyTransformationPartial (replaceAtPoint' (validIdentifier t))
                else return ()
                z' <- getZipper
                applyToSymbolTable (try (updateSymbolTable z' (pack s)))
@@ -248,7 +250,8 @@ addingNameHandler s i = f s (extractInput i)
 selectingTermHandler :: SymbolAppInput a => [Token] -> Int -> (a -> (State (StateData a)) ())
 selectingTermHandler l n i = f (extractInput i)
         where f (Key 'p')  = exitPopup
-              f Enter      = transitionHome (id . replaceWithTerm (l!!n)) >> exitPopup
+              -- f Enter      = transitionHome (id . replaceWithTerm (l!!n)) >> exitPopup
+              f Enter      = changeUIState homeHandler >> applyTransformation (replaceAtPoint' (l!!n)) >> exitPopup
               f (Key 'k')  = selectTerm l (n-1)
               f (Key 'j')  = selectTerm l (n+1)
               f UpArrow    = selectTerm l (n-1)
@@ -261,8 +264,8 @@ languageModifier i = f (extractInput i) (extractWidth i)
               f (Key 'p') n = whenOverIdentifier (return ()) (do updatePosition n
                                                                  z <- getZipper
                                                                  selectTerm (possibleTerms z) 0)
-              f (Key 'O') _ = applyToZipper insertBefore
-              f (Key 'o') _ = applyToZipper insertAfter
+              f (Key 'O') _ = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
+              f (Key 'o') _ = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
               f _         _ = return ()
 
 homeHandler :: SymbolAppInput a => (a -> (State (StateData a)) ())

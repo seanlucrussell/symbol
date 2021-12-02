@@ -1,21 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module STLC.Transformations 
   ( possibleTerms
-  , insertBefore
-  , insertAfter
   , updateSymbolTable
-  , replaceWithTermAndSelectNext
-  , Transformation
-  , swapUp
-  , swapDown
-  , remove
-  , replaceWithTerm) where
+  ) where
 
 import AST
 import Movements
-import STLC.TypeChecker
 import Utilities
+import Transformations
 
+import STLC.TypeChecker
 import STLC.SymbolData
 import STLC.SymbolMovements
 
@@ -27,73 +21,12 @@ import Data.Maybe
 import Control.Monad
 import Control.Applicative
 
-{-# LANGUAGE XOverloadedStrings #-}
-
-type Transformation a = a -> Path -> Maybe (a, Path)
-
 findValidAssignmentId :: Token -> Int
 findValidAssignmentId z = firstNumberNotInList (findAllIds z)
-
-swapAdjacent :: Int -> [a] -> Maybe [a]
-swapAdjacent 0 (x:y:xs) = Just (y:x:xs)
-swapAdjacent n (x:xs) = do xs' <- swapAdjacent (n-1) xs
-                           return (x:xs')
-swapAdjacent _ _ = Nothing
-
-removeAtIndex :: Int -> [a] -> Maybe [a]
-removeAtIndex 0 (_:xs) = Just xs
-removeAtIndex n (x:xs) = do xs' <- removeAtIndex (n-1) xs
-                            return (x:xs')
-removeAtIndex _ _ = Nothing
-
--- NOTE: THIS ONLY SWAPS AT TOP LEVEL! prolly needs new, more specific name to
--- avoid confusion.
-swapDown :: Tree a => Transformation a
-swapDown t (p:ps) = do swapped <- swapAdjacent p (children t)
-                       newTree <- update t swapped
-                       return (newTree, p+1:ps)
-
--- NOTE: THIS ONLY SWAPS AT TOP LEVEL! prolly needs new, more specific name to
--- avoid confusion.
-swapUp :: Tree a => Transformation a
-swapUp t (p:ps) = do swapped <- swapAdjacent (p-1) (children t)
-                     newTree <- update t swapped
-                     return (newTree, p-1:ps)
-
--- NOTE: THIS ONLY REMOVES AT TOP LEVEL! prolly needs new, more specific name to
--- avoid confusion.
-remove :: Tree a => Transformation a
-remove t (p:ps) = do removed <- removeAtIndex p (children t)
-                     newTree <- update t removed
-                     return (newTree, [p-1])
 
 findAllIds :: Token -> [Int]
 findAllIds (Identifier i) = [i]
 findAllIds t = join (fmap findAllIds (children t))
-
-insertBefore :: (Token, Path) -> (Token, Path)
-insertBefore (t, p:ps) = case newToken of
-                Just t' -> (t', 1+p:ps)
-                Nothing -> (t, p:ps)
-   where newToken = update t (insertAt p (Assignment Unknown Unknown Unknown) (children t))
-
-insertAfter :: (Token, Path) -> (Token, Path)
-insertAfter (t, p:ps) = case newToken of
-                Just t' -> (t', p:ps)
-                Nothing -> (t, p:ps)
-   where newToken = update t (insertAt (p+1) (Assignment Unknown Unknown Unknown) (children t))
-
-replaceWithTerm :: Token -> (Token, Path) -> (Token, Path)
-replaceWithTerm replacement = try (replaceWithTerm' replacement)
-
-replaceWithTermAndSelectNext :: Token -> (Token, Path) -> (Token, Path)
-replaceWithTermAndSelectNext replacement = try (replaceWithTerm' replacement >=> (nextHole' <!> return))
-
-replaceWithTerm' :: Token -> (Token, Path) -> Maybe ((Token, Path))
-replaceWithTerm' t (x, p) = do replaced <- replaceAtPoint t p x
-                               if validateProgram replaced
-                               then return (replaced,p)
-                               else Nothing
 
 searchForNamedVariables :: Token -> [Token]
 searchForNamedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
@@ -154,7 +87,7 @@ allPossibleTerms :: Token -> [Token]
 allPossibleTerms t = functionCalls t ++ standardTerms
 
 termTypeChecks :: Token -> Path -> Token -> Bool
-termTypeChecks t' p t = isJust (replaceWithTerm' t (t',p))
+termTypeChecks t' p t = fromMaybe False (fmap validateProgram (replaceAtPoint t p t'))
 
 possibleTerms :: (Token, Path) -> [Token]
 possibleTerms (t,p) = filter (termTypeChecks t p) (allPossibleTerms t)

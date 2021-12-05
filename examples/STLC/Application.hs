@@ -29,6 +29,13 @@ import Data.Maybe
 import Data.Text
 import qualified Data.Set as S
 
+-- try to apply a movement
+applyMovement :: SymbolAppInput a => Movement Token -> (State (StateData a)) ()
+applyMovement m = applyToZipper (try f)
+        where f :: (Token, Path) -> Maybe (Token, Path)
+              f (tree, path) = do path' <- m tree path
+                                  return (tree, path')
+
 -- try to apply a transformation, commiting if the transformation leaves the
 -- data structures in a valid state
 applyTransformation :: SymbolAppInput a => Transformation Token -> (State (StateData a)) ()
@@ -132,9 +139,6 @@ applyToSymbolTable f = applyToSymbolState (\(s, z, p, x) -> ((f s), z, p, x))
 
 applyToZipper :: SymbolAppInput b => ((Token, Path) -> (Token, Path)) -> (State (StateData b)) ()
 applyToZipper f = applyToSymbolState (\(s, z, p, x) -> (s, (f z), p, x))
-
-applyMovement :: SymbolAppInput b => (Token -> Path -> Path) -> (State (StateData b)) ()
-applyMovement f = applyToSymbolState (\(s, (t,p'), p, x) -> (s, (t,(f t p')), p, x))
 
 applyToPosition :: SymbolAppInput b => (Position -> Position) -> (State (StateData b)) ()
 applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
@@ -272,8 +276,8 @@ homeHandler :: SymbolAppInput a => (a -> (State (StateData a)) ())
 homeHandler i = f (extractInput i) (extractWidth i)
         where -- f (Key 'n')  n = applyMovement nextHole >> updatePosition n
               -- f (Key 'N')  n = applyMovement previousHole >> updatePosition n
-              -- f (Key '\t') n = applyToZipper nextLeaf >> updatePosition n
-              -- f BackTab    n = applyToZipper prevLeaf >> updatePosition n
+              f Tab        n = applyMovement nextLeaf >> updatePosition n
+              f BackTab    n = applyMovement prevLeaf >> updatePosition n
               f (Key 'j')  n = applyMovement selectFirst >> updatePosition n
               f (Key 'l')  n = applyMovement selectNext >> updatePosition n
               f (Key 'h')  n = applyMovement selectPrev >> updatePosition n

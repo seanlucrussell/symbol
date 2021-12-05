@@ -5,6 +5,7 @@ module AST
   , treeUnderCursor
   , select
   , isLeaf
+  , search
   , searchTree
   , replaceAtIndex
   , replaceAtPoint
@@ -57,6 +58,10 @@ select n t = findChild n (children t)
 
 searchTree :: Tree a => (a -> Bool) -> a -> [a]
 searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (children t))
+
+search :: Tree a => (a -> Bool) -> a -> [Path]
+search test tree = if test tree then [[]] else []
+                   ++ join [fmap (n:) p | (n,p) <- zip [0..] (fmap (search test) (children tree))]
 
 testAtPoint :: Tree a => (a -> Bool) -> a -> Path -> Maybe Bool
 testAtPoint test tree path = do subtree <- treeUnderCursor path tree

@@ -22,6 +22,7 @@ import Utilities
 
 import Control.Monad
 import Data.Map
+import Data.Maybe
 import qualified Data.Text as T
 
 {-# LANGUAGE XOverloadedStrings #-}
@@ -68,8 +69,9 @@ findAllIds t = join (fmap findAllIds (children t))
 
 -- Includes places where the identifier is still an UnknownToken
 overIdentifier :: Token -> Path -> Bool
-overIdentifier t p = case treeUnderCursor p' t of
-        Just (Function _ _ _) -> Prelude.last p == 0
-        Just (Assignment _ _ _) -> Prelude.last p == 0
-        _ -> False
-      where p' = goUp t p
+overIdentifier t p = fromMaybe False (do p' <- goUp t p
+                                         underCursor <- treeUnderCursor p' t
+                                         return (case underCursor of
+                                                        Function _ _ _ -> Prelude.last p == 0
+                                                        Assignment _ _ _ -> Prelude.last p == 0
+                                                        _ -> False))

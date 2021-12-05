@@ -13,14 +13,6 @@ import AST
 import Movements
 import Utilities
 
-import qualified Data.Text as T
-import qualified Data.Map as M
-
-import Data.List
-import Data.Maybe
-import Control.Monad
-import Control.Applicative
-
 type Transformation a = a -> Path -> Maybe (a, Path)
 
 -- NOTE: THIS ONLY SWAPS AT TOP LEVEL! prolly needs new, more specific name to
@@ -44,10 +36,14 @@ remove t (p:ps) = do removed <- removeAtIndex p (children t)
                      newTree <- update t removed
                      return (newTree, [p-1])
 
+-- NOTE: THIS ONLY INSERTS AT TOP LEVEL! prolly needs new, more specific name to
+-- avoid confusion.
 insertBefore :: Tree a => a -> Transformation a
 insertBefore insertion tree (p:ps) = do newTree <- update tree (insertAt p insertion (children tree))
                                         return (newTree, p+1:ps)
 
+-- NOTE: THIS ONLY INSERTS AT TOP LEVEL! prolly needs new, more specific name to
+-- avoid confusion.
 insertAfter :: Tree a => a -> Transformation a
 insertAfter insertion tree (p:ps) = do newTree <- update tree (insertAt (p+1) insertion (children tree))
                                        return (newTree, p:ps)

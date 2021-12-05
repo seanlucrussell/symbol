@@ -1,18 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Movements
   ( selectFirst
   , selectNext
   , selectPrev
   , selectLast
-  , selectFirst'
-  , selectNext'
-  , selectPrev'
-  , selectLast'
-  -- , nextLeaf
-  -- , prevLeaf
-  -- , previousHole''
-  -- , nextHole''
-  , goToTop
+  , nextLeaf
+  , prevLeaf
+  , Movement
   , goUp) where
 
 import AST
@@ -23,81 +17,38 @@ import qualified Data.Text as T
 import Data.List
 import Data.Maybe
 import Control.Applicative
+import Control.Monad
 
-{-# LANGUAGE XOverloadedStrings #-}
+type Movement a = a -> Path -> Maybe Path
 
--- movements: the underlying ast doesn't change, just the position in it
+searchForward :: Tree a => (a -> Bool) -> Movement a
+searchForward test tree path = listToMaybe (filter (>path) (search test tree))
 
-selectFirst :: Tree a => a -> Path -> Path
-selectFirst = try . selectFirst'
+searchBackward :: Tree a => (a -> Bool) -> Movement a
+searchBackward test tree path = listToMaybe (reverse (filter (<path) (search test tree)))
 
-selectNext :: Tree a => a -> Path -> Path
-selectNext = try . selectNext'
+nextLeaf :: Tree a => Movement a
+nextLeaf = searchForward isLeaf
 
-selectPrev :: Tree a => a -> Path -> Path
-selectPrev = try . selectPrev'
+prevLeaf :: Tree a => Movement a
+prevLeaf = searchBackward isLeaf
 
-selectLast :: Tree a => a -> Path -> Path
-selectLast = try . selectLast'
+selectLast :: Tree a => Movement a
+selectLast t p = selectFirst t p >>= (untilFailure (selectNext t))
 
--- prevLeaf :: Tree a => a -> Path -> Path
--- prevLeaf = try . prevLeaf'
+selectFirst :: Tree a => Movement a
+selectFirst = attemptPathManipulation selectFirst''
 
--- nextLeaf :: Tree a => a -> Path -> Path
--- nextLeaf = try . nextLeaf'
+selectNext :: Tree a => Movement a
+selectNext = attemptPathManipulation selectNext''
 
-goUp :: Tree a => a -> Path -> Path
-goUp = try . goUp'
+selectPrev :: Tree a => Movement a
+selectPrev = attemptPathManipulation selectPrev''
 
-goToTop :: Tree a => a -> Path -> Path
-goToTop = try . untilFailure . goUp'
+goUp :: Tree a => Movement a
+goUp = attemptPathManipulation goUp''
 
-selectLast' :: Tree a => a -> Path -> Maybe Path
-selectLast' t p = selectFirst' t p >>= (untilFailure (selectNext' t))
-
--- nextLeaf' :: Tree a => (a, Path) -> Maybe ((a, Path))
--- nextLeaf' = nextHole'' (\(t,p) -> isJust (fmap isLeaf (treeUnderCursor p t)))
-
--- prevLeaf' :: Tree a => (a, Path) -> Maybe ((a, Path))
--- prevLeaf' = previousHole'' (\(t,p) -> isJust (fmap isLeaf (treeUnderCursor p t)))
-
--- nextHole'' :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- nextHole'' f z = (searchStart z >>= searchDownRight f) <|> searchUpRight f z
---    where searchStart = if f z then selectNext' else Just
-
--- searchDownRight :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchDownRight f z = (searchChildrenRight f z) <|> (selectNext' z >>= searchDownRight f)
--- searchChildrenRight :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchChildrenRight f z = if f z then Just z else selectFirst' z >>= searchDownRight f
--- searchUpRight :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchUpRight f z = (parent >>= selectNext' >>= searchDownRight f) <|> (parent >>= searchUpRight f)
---   where parent = goUp' z
-
-
--- previousHole'' :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- previousHole'' f z = (selectPrev' z >>= searchDownLeft f) <|> searchUpLeft f z
-
--- searchDownLeft :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchDownLeft f z = searchChildrenLeft f z <|> (selectPrev' z >>= searchDownLeft f)
--- searchChildrenLeft :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchChildrenLeft f z = if f z then Just z else selectLast' z >>= searchDownLeft f
--- searchUpLeft :: Tree a => ((a, Path) -> Bool) -> (a, Path) -> Maybe ((a, Path))
--- searchUpLeft f (t,p) = (parent >>= selectPrev' t >>= searchDownLeft f) <|> (parent >>= searchUpLeft f)
---    where parent = goUp' t p
-
-selectFirst' :: Tree a => a -> Path -> Maybe Path
-selectFirst' = attemptPathManipulation selectFirst''
-
-selectNext' :: Tree a => a -> Path -> Maybe Path
-selectNext' = attemptPathManipulation selectNext''
-
-selectPrev' :: Tree a => a -> Path -> Maybe Path
-selectPrev' = attemptPathManipulation selectPrev''
-
-goUp' :: Tree a => a -> Path -> Maybe Path
-goUp' = attemptPathManipulation goUp''
-
-attemptPathManipulation :: Tree a => (Path -> Path) -> a -> Path -> Maybe Path
+attemptPathManipulation :: Tree a => (Path -> Path) -> Movement a
 attemptPathManipulation m t p = toMaybe (validatePath t (m p)) (m p)
 
 -- simple path manipulations. we then validate these

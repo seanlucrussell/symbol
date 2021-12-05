@@ -17,9 +17,9 @@ import Renderer
 import Transformations
 import Utilities
 
-import STLC.SymbolData
-import STLC.SymbolMovements
-import STLC.SymbolRenderer
+import STLC.Data
+import STLC.Movements
+import STLC.Renderer
 import STLC.Transformations
 import STLC.TypeChecker
 

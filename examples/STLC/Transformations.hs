@@ -10,8 +10,8 @@ import Utilities
 import Transformations
 
 import STLC.TypeChecker
-import STLC.SymbolData
-import STLC.SymbolMovements
+import STLC.Data
+import STLC.Movements
 
 import qualified Data.Text as T
 import qualified Data.Map as M

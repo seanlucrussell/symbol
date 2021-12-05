@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module STLC.SymbolData
+module STLC.Data
   ( Token
     ( Identifier
     , Function

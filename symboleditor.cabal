@@ -40,11 +40,11 @@ executable SymbolEditor
   default-extensions:  CPP
   other-modules:
         STLC.Application
-        STLC.SymbolData
-        STLC.SymbolMovements
-        STLC.SymbolRenderer
+        STLC.Data
+        STLC.Movements
+        STLC.Renderer
         STLC.BrickRenderer
-        STLC.SymbolSerialize
+        STLC.Serialize
         STLC.Transformations
         STLC.TypeChecker
   build-depends:       base >=4.12 && <4.13,

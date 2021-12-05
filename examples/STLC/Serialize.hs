@@ -1,10 +1,10 @@
-module STLC.SymbolSerialize 
+module STLC.Serialize 
         ( serialize
         , deserialize
         )
    where
 
-import STLC.SymbolData
+import STLC.Data
 import AST hiding (Tree)
 
 import qualified Data.Map

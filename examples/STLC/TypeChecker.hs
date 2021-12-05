@@ -2,7 +2,7 @@
 module STLC.TypeChecker
   ( validateProgram ) where
 
-import STLC.SymbolData
+import STLC.Data
 import AST
 import Utilities
 

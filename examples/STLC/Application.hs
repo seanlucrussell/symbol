@@ -205,7 +205,7 @@ positionFromPath pathMap path = leastInList positions
               leastInList [] = error "Path not in PathMap. How did that happen?"
               leastInList (l:[]) = l
               leastInList (l:ls) = lowest l (leastInList ls)
-              positions = [position | (position,p) <- toList pathMap, p == path]
+              positions = [position | (position,p) <- toList pathMap, path `elem` p ]
 
 updatePosition :: SymbolAppInput b => Int -> (State (StateData b)) ()
 updatePosition n = do pathMap <- getPathMap n
@@ -223,7 +223,7 @@ updatePath n = do StateData (s, (t, _), p, x) u h <- get
 pathFromPosition :: SymbolAppInput b => Int -> (State (StateData b)) (Maybe Path)
 pathFromPosition n = do pathMap <- getPathMap n
                         position <- getPosition
-                        return (Data.Map.lookup position pathMap)
+                        return (fmap Prelude.head (Data.Map.lookup position pathMap))
 
 selectTerm :: SymbolAppInput b => [Token] -> Int -> (State (StateData b)) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')

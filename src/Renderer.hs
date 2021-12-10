@@ -37,24 +37,28 @@ layout n = layoutSmart (LayoutOptions (AvailablePerLine n 1))
 
 
 type Position = (Int, Int)
-type PathMap = Map Position Path
+type PathMap = Map Position [Path]
+
+forward :: Int -> Position -> Position
+forward n (x,y) = (x+n,y)
+
+down :: Int -> Position -> Position
+down n (_,y) = (n,y+1)
 
 -- push/pop requires that we ignore annotations that aren't markings. currently
 -- fixed in termToPathMap but more robust solution would be preferred
 generatePathMap :: [Path] -> Position -> SimpleDocStream Marking -> PathMap
-generatePathMap _      (x,y) SFail                      = empty
-generatePathMap _      (x,y) SEmpty                     = empty
-generatePathMap (p:ps) (x,y) (SChar _ s)                = insert (x,y) p (generatePathMap (p:ps) (x+1,y) s)
-generatePathMap (p:ps) (x,y) (SText x' _ s)             = union (fromList [((x+n,y),p) | n <- [0..x']])
-                                                                (generatePathMap (p:ps) (x+x',y) s)
-generatePathMap (p:ps) (_,y) (SLine x s)                = generatePathMap (p:ps) (x,y+1) s
-generatePathMap p      (x,y) (SAnnPush (Location p') s) = generatePathMap (p':p) (x,y) s
-generatePathMap (p:ps) (x,y) (SAnnPush _ s)             = generatePathMap (p:ps) (x,y) s
-generatePathMap (p:ps) (x,y) (SAnnPop s)                = generatePathMap ps (x,y) s
-generatePathMap []     x     n                          = error ("unmatched pattern in generatePathMap: "
-                                                             ++ "empty path"
-                                                             ++ ", "
-                                                             ++ show x ++ show n)
+generatePathMap _ _ SFail                      = empty
+generatePathMap _ _ SEmpty                     = empty
+generatePathMap p x (SChar _ s)                = insert x p (generatePathMap p (forward 1 x) s)
+generatePathMap p x (SText n _ s)             = union (fromList [((forward m x),p) | m <- [0..n]])
+                                                           (generatePathMap p (forward n x) s)
+generatePathMap p x (SLine n s)                = generatePathMap p (down n x) s
+generatePathMap p x (SAnnPush (Location p') s) = generatePathMap (p':p) x s
+generatePathMap p x (SAnnPush _ s)             = generatePathMap p x s
+generatePathMap (p:ps) x (SAnnPop s)           = generatePathMap ps x s
+generatePathMap [] x    n                          = error ("unmatched pattern in generatePathMap: "
+                                                             ++ "empty path, " ++ show x ++ show n)
 
 termToPathMap :: (Tree a, Renderable a) => SymbolTable -> Int -> a -> PathMap
 termToPathMap s n t = generatePathMap [] (0,0) layoutPathsOnly

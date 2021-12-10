@@ -21,8 +21,7 @@ import Data.Text.Prettyprint.Doc
 instance Renderable Token where
   renderTerm' s _ (Identifier i) [] = annotate Cyan (case M.lookup i s of
                        Just i' -> pretty i'
-                       Nothing -> error ("identifier lookup failed in renderer! identifier number was "
-                                         ++ show i))
+                       Nothing -> error ("id lookup failed in renderer! id number was " ++ show i))
   renderTerm' _ _ (Function _ _ _) [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))
   renderTerm' _ (RenderContext (Application _ _) 0) (Application _ _) [a, b] = align (sep [a, b])
   renderTerm' _ (RenderContext (Assignment _ _ _) 2) (Application _ _) [a, b] = align (sep [a, b])

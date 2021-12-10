@@ -146,7 +146,6 @@ applyToPosition f = applyToSymbolState (\(s, z, p, x) -> (s, z, (f p), x))
 setPopup :: SymbolAppInput b => Maybe ([Token], Int) -> (State (StateData b)) ()
 setPopup x = applyToSymbolState (\(s, z, p, _) -> (s, z, p, x))
 
-
 applyToSymbolState :: SymbolAppInput b => (SymbolState -> SymbolState) -> (State (StateData b)) ()
 applyToSymbolState f = do StateData s u h <- get
                           put (StateData (f s) u h)
@@ -230,9 +229,6 @@ selectTerm :: SymbolAppInput b => [Token] -> Int -> (State (StateData b)) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeUIState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
-exitPopup :: SymbolAppInput b => (State (StateData b)) ()
-exitPopup = setPopup Nothing >> changeUIState homeHandler
-
 class SymbolAppInput a where
   extractInput :: a -> ApplicationInput
   extractWidth :: a -> Int
@@ -254,23 +250,13 @@ addingNameHandler s i = f s (extractInput i)
 selectingTermHandler :: SymbolAppInput a => [Token] -> Int -> (a -> (State (StateData a)) ())
 selectingTermHandler l n i = f (extractInput i)
         where f (Key 'p')  = exitPopup
-              -- f Enter      = transitionHome (id . replaceWithTerm (l!!n)) >> exitPopup
-              f Enter      = changeUIState homeHandler >> applyTransformation (replaceAtPoint' (l!!n)) >> exitPopup
+              f Enter      = changeUIState homeHandler >> exitPopup >> applyTransformation (replaceAtPoint' (l!!n))
               f (Key 'k')  = selectTerm l (n-1)
               f (Key 'j')  = selectTerm l (n+1)
               f UpArrow    = selectTerm l (n-1)
               f DownArrow  = selectTerm l (n+1)
               f _          = return ()
-
-languageModifier :: SymbolAppInput a => (a -> (State (StateData a)) ())
-languageModifier i = f (extractInput i) (extractWidth i)
-        where f (Key 'r') _ = whenOverIdentifier (setName " ") (return ())
-              f (Key 'p') n = whenOverIdentifier (return ()) (do updatePosition n
-                                                                 z <- getZipper
-                                                                 selectTerm (possibleTerms z) 0)
-              f (Key 'O') _ = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
-              f (Key 'o') _ = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
-              f _         _ = return ()
+              exitPopup = setPopup Nothing >> changeUIState homeHandler
 
 homeHandler :: SymbolAppInput a => (a -> (State (StateData a)) ())
 homeHandler i = f (extractInput i) (extractWidth i)
@@ -292,9 +278,22 @@ homeHandler i = f (extractInput i) (extractWidth i)
               f DownArrow  n = applyToPosition selectDown >> updatePath n
               -- f RightArrow n = applyMovement nextLeaf >> updatePosition n
               -- f LeftArrow  n = applyMovement prevLeaf >> updatePosition n
-              f k          n = languageModifier i
               -- f LeftArrow n = applyToPosition selectLeft >> updatePath n
               -- f RightArrow n = applyToPosition selectRight >> updatePath n
+              f (Key 'r') _ = whenOverIdentifier (setName " ") (return ())
+              f (Key 'p') n = whenOverIdentifier (return ()) (do updatePosition n
+                                                                 z <- getZipper
+                                                                 selectTerm (possibleTerms z) 0)
+              f (Key 'O') _ = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
+              f (Key 'o') _ = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
+              f (Key '?') _ = applyTransformation (replaceAtPoint' Unknown)
+              f (Key 't') _ = applyTransformation (replaceAtPoint' TrueTerm)
+              f (Key 'f') _ = applyTransformation (replaceAtPoint' FalseTerm)
+              f (Key 'b') _ = applyTransformation (replaceAtPoint' BoolType)
+              f (Key '>') _ = applyTransformation (replaceAtPoint' (FunctionType Unknown Unknown))
+              f (Key '\\') _ = applyTransformation (replaceAtPoint' (Function Unknown Unknown Unknown))
+              f _         _ = return ()
+
 
 commit :: SymbolAppInput b => (State (StateData b)) ()
 commit = do sd@(StateData s u _) <- get

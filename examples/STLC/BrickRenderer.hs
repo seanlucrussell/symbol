@@ -102,8 +102,10 @@ popup :: (Tree a, Renderable a) => Position -> SymbolTable -> L.List Name a -> W
 popup (x,y) s l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
     where
         total = show (Vec.length (l^.(L.listElementsL)))
-        listDrawElement _ a = C.hCenter $ hLimit 35 $ vLimit 1 $
-                                (renderDoc (renderTerm s NoRenderContext a)) Brick.<+> Brick.fill ' '
+        listDrawElement selected a = C.hCenter $ hLimit 35 $ vLimit 1 $
+                                if selected
+                                then (renderDoc (renderZipper s a [])) Brick.<+> (modifyDefAttr (const (defAttr `withStyle` standout)) (Brick.fill ' '))
+                                else (renderDoc (renderTerm s NoRenderContext a)) Brick.<+> Brick.fill ' '
         box = hLimit 35 $
               vLimit 15 $
               L.renderList listDrawElement True l

@@ -50,7 +50,7 @@ import qualified Control.Monad.State as S
 
 
 serializeToFile :: String -> StateData AppInput -> IO ()
-serializeToFile f (StateData (table, (program, path), _, _) _ _) = writeFile f (serialize (table, program, path))
+serializeToFile f (StateData (SymbolState table program path _ _) _ _) = writeFile f (serialize (table, program, path))
 
 appEvent :: String -> StateData AppInput -> BrickEvent n e -> EventM Name (Next (StateData AppInput))
 appEvent file d (VtyEvent (EvKey e [] )) =
@@ -74,7 +74,7 @@ customAttr = L.listSelectedAttr <> "custom"
 
 stateDataFromString :: String -> Maybe (StateData AppInput)
 stateDataFromString s = do (symbolTable, program, path) <- deserialize s
-                           let state = StateData (symbolTable, (program, path), (0,0), Nothing) (Just homeHandler) state in
+                           let state = StateData (SymbolState symbolTable program path (0,0) Nothing) (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already

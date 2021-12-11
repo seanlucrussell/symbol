@@ -90,9 +90,9 @@ instance Ord Name where
   _ <= _ = True
 
 drawUI :: StateData AppInput -> [Widget Name]
-drawUI (StateData (s, z, x, p) u _) = (case p of
+drawUI (StateData (SymbolState s t p' x p) u _) = (case p of
      Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
-     _ -> []) ++ [zipperToWidget s z]
+     _ -> []) ++ [zipperToWidget s (t,p')]
 
 zipperToWidget :: (Tree a, Renderable a) => SymbolTable -> (a, Path) -> Widget Name
 zipperToWidget s (t,p) = Brick.reportExtent MainWindowName (renderDoc (renderZipper s t p))

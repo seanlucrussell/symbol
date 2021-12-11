@@ -20,6 +20,7 @@ import Data.Text.Prettyprint.Doc
 
 instance Renderable Token where
   renderTerm' s _ (Identifier i) [] = annotate Cyan (case M.lookup i s of
+                       Just "" -> " "
                        Just i' -> pretty i'
                        Nothing -> error ("id lookup failed in renderer! id number was " ++ show i))
   renderTerm' _ _ (Function _ _ _) [a, b, c] = group (hang 1 (vcat ["λ" <> a <> ":" <> b <> ".", c]))

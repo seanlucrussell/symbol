@@ -75,10 +75,10 @@ standardTerms = [ TrueTerm
 termTypeChecks :: Token -> Path -> Token -> Bool
 termTypeChecks t' p t = fromMaybe False (fmap validateProgram (replaceAtPoint t p t'))
 
-possibleTerms :: (Token, Path) -> [Token]
-possibleTerms (t,p) = filter (termTypeChecks t p) (functionCalls t ++ standardTerms)
+possibleTerms :: Token -> Path -> [Token]
+possibleTerms t p = filter (termTypeChecks t p) (functionCalls t ++ standardTerms)
 
-updateSymbolTable :: (Token, Path) -> T.Text -> SymbolTable -> Maybe SymbolTable
-updateSymbolTable (t',p) t s = case treeUnderCursor p t' of
+updateSymbolTable :: Token -> Path -> T.Text -> SymbolTable -> Maybe SymbolTable
+updateSymbolTable t' p t s = case treeUnderCursor p t' of
         Just (Identifier i) -> Just (M.insert i t s)
         _ -> Nothing

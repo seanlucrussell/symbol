@@ -7,7 +7,6 @@ module STLC.BrickRenderer
   , Name (MainWindowName, PopupName)
   , popup
   , drawUI
-  , AppInput
   ) where
 
 import AST
@@ -29,22 +28,6 @@ import qualified Data.Vector as Vec
 
 import Lens.Micro
 import Control.Monad
-
-type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
-
-instance SymbolAppInput AppInput where
-  extractInput ((KChar '\t'),_) = Tab
-  extractInput (KBackTab,_)     = BackTab
-  extractInput ((KChar c),_) = Key c
-  extractInput (KEnter,_)    = Enter
-  extractInput (KBS,_)       = Del
-  extractInput (KUp,_)       = UpArrow
-  extractInput (KDown,_)     = DownArrow
-  extractInput (KLeft,_)     = LeftArrow
-  extractInput (KRight,_)     = RightArrow
-  extractInput (KEsc,_)     = Esc
-  extractInput _             = Other
-  extractWidth (_,n) = n
 
 renderStack :: [StackInstructions Marking] -> [Widget Name]
 renderStack lines = renderStack' lines []
@@ -89,7 +72,7 @@ instance Ord Name where
   PopupName <= MainWindowName = False
   _ <= _ = True
 
-drawUI :: StateData AppInput -> [Widget Name]
+drawUI :: StateData -> [Widget Name]
 drawUI (StateData (SymbolState s t p' x p) u _) = (case p of
      Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s (t,p')]

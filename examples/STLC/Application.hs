@@ -33,9 +33,7 @@ import Data.Text
 import Data.Char
 import qualified Data.Set as S
 
-class SymbolAppInput a where
-  extractInput :: a -> ApplicationInput
-  extractWidth :: a -> Int
+type SymbolAppInput = (ApplicationInput, Int)
 
 data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow | RightArrow | Esc | Tab | BackTab |  Other
 
@@ -52,25 +50,25 @@ data SymbolState a = SymbolState
 -- so this datatype is getting out of hand. BUT! it works pretty dang well. the
 -- recursive bit at the end means that this thing keeps track of history, so we
 -- can commit and revert changes as batches.
-data StateData a = SymbolAppInput a => StateData (SymbolState Token) (Maybe (FoldMachine a)) (StateData a)
+data StateData = StateData (SymbolState Token) (Maybe FoldMachine) StateData
 
-type FoldMachine a = a -> (State (StateData a)) ()
+type FoldMachine = SymbolAppInput -> (State StateData) ()
 
-class Movable a where
-  move :: Tree b => a -> Movement b -> Maybe a
-
-class Transformable a where
-  transform :: Tree b => a -> Transformation b -> Maybe a
-
-class Application a b where
-  advance :: a -> b -> Maybe a
-
-class Transaction a where
-  commit :: a -> a
-  revert :: a -> a
+-- class Movable a where
+--   move :: Tree b => a -> Movement b -> Maybe a
+-- 
+-- class Transformable a where
+--   transform :: Tree b => a -> Transformation b -> Maybe a
+-- 
+-- class Application a b where
+--   advance :: a -> b -> Maybe a
+-- 
+-- class Transaction a where
+--   commit :: a -> a
+--   revert :: a -> a
 
 -- try to apply a movement
-applyMovement :: SymbolAppInput a => Movement Token -> (State (StateData a)) ()
+applyMovement :: Movement Token -> (State StateData) ()
 applyMovement m = applyToZipper (try f)
         where f :: (Token, Path) -> Maybe (Token, Path)
               f (tree, path) = do path' <- m tree path
@@ -78,7 +76,7 @@ applyMovement m = applyToZipper (try f)
 
 -- try to apply a transformation, commiting if the transformation leaves the
 -- data structures in a valid state
-applyTransformation :: SymbolAppInput a => Transformation Token -> (State (StateData a)) ()
+applyTransformation :: Transformation Token -> (State StateData) ()
 applyTransformation t = applyToZipper (try f) >> commit
         where f :: (Token, Path) -> Maybe (Token, Path)
               f (tree, path) = do (tree', path') <- t tree path
@@ -89,7 +87,7 @@ applyTransformation t = applyToZipper (try f) >> commit
 -- like applyTransformation, but doesn't do checking, doesn't commit change.
 -- good for intermediate transitions where the underlying datastructures aren't
 -- sound
-applyTransformationPartial :: SymbolAppInput a => Transformation Token -> (State (StateData a)) ()
+applyTransformationPartial :: Transformation Token -> (State StateData) ()
 applyTransformationPartial t = applyToZipper (try f)
         where f :: (Token, Path) -> Maybe (Token, Path)
               f (tree, path) = do (tree', path') <- t tree path
@@ -112,12 +110,12 @@ applyTransformationPartial t = applyToZipper (try f)
 --
 -- so what do we need? some functions:
 --
--- validate :: (StateData b) -> Boolean
+-- validate :: StateData -> Boolean
 -- startTransaction :: (State StateData) ()
 -- commit :: (State StateData) ()
 --
 -- and an extra element to the UIState data type
--- Transacting :: (StateData b) -> UIState
+-- Transacting :: StateData -> UIState
 
 -- ok so state data should maybe accept a Rendering callback or something like
 -- that? something like
@@ -133,7 +131,7 @@ applyTransformationPartial t = applyToZipper (try f)
 -- transformations? It does seem slightly simpler, but I end up replicating bits
 -- of it anyhow to communicate w/ the renderer
 
-setName :: SymbolAppInput a => String -> (State (StateData a)) ()
+setName :: String -> (State StateData) ()
 setName s = do changeState (addingNameHandler s)
                t <- getTerm
                p <- getPath
@@ -144,43 +142,43 @@ setName s = do changeState (addingNameHandler s)
                p' <- getPath
                applyToSymbolTable (try (updateSymbolTable t' p' (pack s)))
 
-whenOverIdentifier :: SymbolAppInput b => (State (StateData b)) a -> (State (StateData b)) a -> (State (StateData b)) a
+whenOverIdentifier :: (State StateData) a -> (State StateData) a -> (State StateData) a
 whenOverIdentifier yes no = do t <- getTerm
                                p <- getPath
                                if overIdentifier t p then yes else no
 
-applyToSymbolTable :: SymbolAppInput b => (SymbolTable -> SymbolTable) -> (State (StateData b)) ()
+applyToSymbolTable :: (SymbolTable -> SymbolTable) -> (State StateData) ()
 applyToSymbolTable f = applyToSymbolState (\(SymbolState s t p' p x) -> SymbolState (f s) t p' p x)
 
-applyToZipper :: SymbolAppInput b => ((Token, Path) -> (Token, Path)) -> (State (StateData b)) ()
+applyToZipper :: ((Token, Path) -> (Token, Path)) -> (State StateData) ()
 applyToZipper f = applyToSymbolState (\(SymbolState s t p' p x) -> let (t',p'') = f (t,p') in SymbolState s t' p'' p x)
 
-applyToPosition :: SymbolAppInput b => (Position -> Position) -> (State (StateData b)) ()
+applyToPosition :: (Position -> Position) -> (State StateData) ()
 applyToPosition f = applyToSymbolState (\(SymbolState s t p' p x) -> SymbolState s t p' (f p) x)
 
-setPopup :: SymbolAppInput b => Maybe ([Token], Int) -> (State (StateData b)) ()
+setPopup :: Maybe ([Token], Int) -> (State StateData) ()
 setPopup x = applyToSymbolState (\(SymbolState s t p' p _) -> SymbolState s t p' p x)
 
-applyToSymbolState :: SymbolAppInput b => ((SymbolState Token) -> (SymbolState Token)) -> (State (StateData b)) ()
+applyToSymbolState :: ((SymbolState Token) -> (SymbolState Token)) -> (State StateData) ()
 applyToSymbolState f = do StateData s u h <- get
                           put (StateData (f s) u h)
 
-getSymbolState :: SymbolAppInput b => (State (StateData b)) (SymbolState Token)
+getSymbolState :: (State StateData) (SymbolState Token)
 getSymbolState = do StateData s _ _ <- get
                     return s
 
-getSymbolTable :: SymbolAppInput b => (State (StateData b)) SymbolTable
+getSymbolTable :: (State StateData) SymbolTable
 getSymbolTable = do SymbolState s _ _ _ _ <- getSymbolState
                     return s
 
-getTerm :: SymbolAppInput b => (State (StateData b)) (Token)
+getTerm :: (State StateData) (Token)
 getTerm = do SymbolState _ t _ _ _ <- getSymbolState
              return t
 
-getPath :: SymbolAppInput b => (State (StateData b)) Path
+getPath :: (State StateData) Path
 getPath = do SymbolState _ _ p _ _ <- getSymbolState
              return p
-getPosition :: SymbolAppInput b => (State (StateData b)) Position
+getPosition :: (State StateData) Position
 getPosition = do SymbolState _ _ _ p _ <- getSymbolState
                  return p
 
@@ -204,7 +202,7 @@ selectDown (x,y) = (x,y+1)
 selectUp :: Position -> Position
 selectUp (x,y) = (x,y-1)
 
-getPathMap :: SymbolAppInput b => Int -> (State (StateData b)) PathMap
+getPathMap :: Int -> (State StateData) PathMap
 getPathMap n = do s <- getSymbolTable
                   t <- getTerm
                   return (termToPathMap s n t)
@@ -217,25 +215,35 @@ positionFromPath pathMap path = leastInList positions
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = [position | (position,p) <- toList pathMap, path `elem` p ]
 
-updatePosition :: SymbolAppInput b => Int -> (State (StateData b)) ()
+updatePosition :: Int -> (State StateData) ()
 updatePosition n = do pathMap <- getPathMap n
                       path <- getPath
                       applyToPosition (const (positionFromPath pathMap path))
 
+exitPopup :: (State StateData) ()
+exitPopup = setPopup Nothing >> changeState homeHandler
 
-updatePath :: SymbolAppInput b => Int -> (State (StateData b)) ()
+commit :: (State StateData) ()
+commit = do sd@(StateData s u _) <- get
+            put (StateData s u sd)
+
+revert :: (State StateData) ()
+revert = do StateData _ _ h <- get
+            put h
+
+updatePath :: Int -> (State StateData) ()
 updatePath n = do StateData (SymbolState s t _ p x) u h <- get
                   pMap <- pathFromPosition n
                   case pMap of
                          Just p' -> put (StateData (SymbolState s t p' p x) u h)
                          Nothing -> return ()
 
-pathFromPosition :: SymbolAppInput b => Int -> (State (StateData b)) (Maybe Path)
+pathFromPosition :: Int -> (State StateData) (Maybe Path)
 pathFromPosition n = do pathMap <- getPathMap n
                         position <- getPosition
                         return (fmap Prelude.head (Data.Map.lookup position pathMap))
 
-selectTerm :: SymbolAppInput b => [Token] -> Int -> (State (StateData b)) ()
+selectTerm :: [Token] -> Int -> (State StateData) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
@@ -247,88 +255,73 @@ selectTerm l n = setPopup (Just (l,n')) >> changeState (selectingTermHandler l n
 -- basic validation stuff. 1 arguably shouldn't be under the purview of the name
 -- handling code.
 
-addingNameHandler :: SymbolAppInput a => String -> FoldMachine a
-addingNameHandler s i = f (extractInput i)
-        where f (Key k) = if isAlphaNum k then setName (s ++ [k]) else return ()
-              f Enter   = if s /= "" then changeState homeHandler else return ()
-              f Del     = if s /= "" then setName (Prelude.init s) else return ()
-              f  _      = return ()
+addingNameHandler :: String -> FoldMachine
+addingNameHandler s ((Key k),_) = if isAlphaNum k then setName (s ++ [k]) else return ()
+addingNameHandler s (Enter  ,_) = if s /= "" then changeState homeHandler else return ()
+addingNameHandler s (Del    ,_) = if s /= "" then setName (Prelude.init s) else return ()
+addingNameHandler s ( _     ,_) = return ()
 
-selectingTermHandler :: SymbolAppInput a => [Token] -> Int -> FoldMachine a
-selectingTermHandler l n i = f (extractInput i)
-        where f (Key 'p')  = exitPopup
-              f Enter      = exitPopup >> applyTransformation (replaceAtPoint' (l!!n))
-              f (Key 'k')  = goUp
-              f (Key 'j')  = goDown
-              f UpArrow    = goUp
-              f DownArrow  = goDown
-              f _          = return ()
-              goUp = selectTerm l (n-1)
-              goDown = selectTerm l (n+1)
-              exitPopup = setPopup Nothing >> changeState homeHandler
+selectingTermHandler :: [Token] -> Int -> FoldMachine
+selectingTermHandler l n ((Key 'p'),_) = exitPopup
+selectingTermHandler l n (Enter    ,_) = exitPopup >> applyTransformation (replaceAtPoint' (l!!n))
+selectingTermHandler l n ((Key 'k'),_) = selectTerm l (n-1)
+selectingTermHandler l n ((Key 'j'),_) = selectTerm l (n+1)
+selectingTermHandler l n (UpArrow  ,_) = selectTerm l (n-1)
+selectingTermHandler l n (DownArrow,_) = selectTerm l (n+1)
+selectingTermHandler l n (_        ,_) = return ()
 
-homeHandler :: SymbolAppInput a => FoldMachine a
-homeHandler i = f (extractInput i) (extractWidth i)
-        where -- f (Key 'n')  n = applyMovement nextHole >> updatePosition n
-              -- f (Key 'N')  n = applyMovement previousHole >> updatePosition n
-              f Tab        n = applyMovement nextLeaf >> updatePosition n
-              f BackTab    n = applyMovement prevLeaf >> updatePosition n
-              f (Key 'j')  n = applyMovement selectFirst >> updatePosition n
-              f (Key 'l')  n = applyMovement selectNext >> updatePosition n
-              f (Key 'h')  n = applyMovement selectPrev >> updatePosition n
-              f (Key 'k')  n = applyMovement goUp >> updatePosition n
-              f (Key 's')  n = applyTransformation swapUp
-              f (Key 'S')  n = applyTransformation swapDown
-              f (Key 'x')  n = applyTransformation remove
-              f (Key 'c')  _ = commit
-              f (Key 'u')  _ = revert
-              f Esc        _ = terminate
-              f UpArrow    n = applyToPosition selectUp >> updatePath n
-              f DownArrow  n = applyToPosition selectDown >> updatePath n
-              -- f RightArrow n = applyMovement nextLeaf >> updatePosition n
-              -- f LeftArrow  n = applyMovement prevLeaf >> updatePosition n
-              -- f LeftArrow n = applyToPosition selectLeft >> updatePath n
-              -- f RightArrow n = applyToPosition selectRight >> updatePath n
-              f (Key 'r') _ = whenOverIdentifier (setName "") (return ())
-              f (Key 'p') n = whenOverIdentifier (return ()) (do updatePosition n
-                                                                 t <- getTerm
-                                                                 p <- getPath
-                                                                 selectTerm (possibleTerms t p) 0)
-              f (Key 'O') _ = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
-              f (Key 'o') _ = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
-              f (Key '?') _ = applyTransformation (replaceAtPoint' Unknown)
-              f (Key 't') _ = applyTransformation (replaceAtPoint' TrueTerm)
-              f (Key 'f') _ = applyTransformation (replaceAtPoint' FalseTerm)
-              f (Key 'b') _ = applyTransformation (replaceAtPoint' BoolType)
-              f (Key '>') _ = applyTransformation (replaceAtPoint' (FunctionType Unknown Unknown))
-              f (Key '\\') _ = applyTransformation (replaceAtPoint' (Function Unknown Unknown Unknown))
-              f _         _ = return ()
+homeHandler :: FoldMachine
+-- homeHandler ((Key 'n') ,n) = applyMovement nextHole >> updatePosition n
+-- homeHandler ((Key 'N') ,n) = applyMovement previousHole >> updatePosition n
+-- homeHandler (RightArrow,n) = applyMovement nextLeaf >> updatePosition n
+-- homeHandler (LeftArrow ,n) = applyMovement prevLeaf >> updatePosition n
+-- homeHandler (LeftArrow ,n) = applyToPosition selectLeft >> updatePath n
+-- homeHandler (RightArrow,n) = applyToPosition selectRight >> updatePath n
+homeHandler (Tab       ,n) = applyMovement nextLeaf >> updatePosition n
+homeHandler (BackTab   ,n) = applyMovement prevLeaf >> updatePosition n
+homeHandler ((Key 'j') ,n) = applyMovement selectFirst >> updatePosition n
+homeHandler ((Key 'l') ,n) = applyMovement selectNext >> updatePosition n
+homeHandler ((Key 'h') ,n) = applyMovement selectPrev >> updatePosition n
+homeHandler ((Key 'k') ,n) = applyMovement goUp >> updatePosition n
+homeHandler ((Key 's') ,n) = applyTransformation swapUp
+homeHandler ((Key 'S') ,n) = applyTransformation swapDown
+homeHandler ((Key 'x') ,n) = applyTransformation remove
+homeHandler ((Key 'c') ,_) = commit
+homeHandler ((Key 'u') ,_) = revert
+homeHandler (Esc       ,_) = terminate
+homeHandler (UpArrow   ,n) = applyToPosition selectUp >> updatePath n
+homeHandler (DownArrow ,n) = applyToPosition selectDown >> updatePath n
+homeHandler ((Key 'r') ,_) = whenOverIdentifier (setName "") (return ())
+homeHandler ((Key 'p') ,n) = whenOverIdentifier (return ()) (do updatePosition n
+                                                                t <- getTerm
+                                                                p <- getPath
+                                                                selectTerm (possibleTerms t p) 0)
+homeHandler ((Key 'O') ,_) = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
+homeHandler ((Key 'o') ,_) = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
+homeHandler ((Key '?') ,_) = applyTransformation (replaceAtPoint' Unknown)
+homeHandler ((Key 't') ,_) = applyTransformation (replaceAtPoint' TrueTerm)
+homeHandler ((Key 'f') ,_) = applyTransformation (replaceAtPoint' FalseTerm)
+homeHandler ((Key 'b') ,_) = applyTransformation (replaceAtPoint' BoolType)
+homeHandler ((Key '>') ,_) = applyTransformation (replaceAtPoint' (FunctionType Unknown Unknown))
+homeHandler ((Key '\\'),_) = applyTransformation (replaceAtPoint' (Function Unknown Unknown Unknown))
+homeHandler (_         ,_) = return ()
 
-
-commit :: SymbolAppInput b => (State (StateData b)) ()
-commit = do sd@(StateData s u _) <- get
-            put (StateData s u sd)
-
-revert :: SymbolAppInput b => (State (StateData b)) ()
-revert = do StateData _ _ h <- get
-            put h
-
-changeState :: SymbolAppInput b => FoldMachine b -> (State (StateData b)) ()
+changeState :: FoldMachine -> (State StateData) ()
 changeState u = do StateData s _ h <- get
                    put (StateData s (Just u) h)
 
-terminate :: SymbolAppInput b => (State (StateData b)) ()
+terminate :: (State StateData) ()
 terminate = do StateData s _ h <- get
                put (StateData s Nothing h)
 
-getUIState :: SymbolAppInput b => (State (StateData b)) (Maybe (FoldMachine b))
+getUIState :: (State StateData) (Maybe (FoldMachine))
 getUIState = do StateData _ u _ <- get
                 return u
 
-appHasTerminated :: SymbolAppInput b => Maybe (FoldMachine b) -> Bool
+appHasTerminated :: Maybe (FoldMachine) -> Bool
 appHasTerminated = isNothing
 
-stateHandler :: SymbolAppInput b => FoldMachine b
+stateHandler :: FoldMachine
 stateHandler k = do u <- getUIState
                     case u of
                         Just u' -> u' k

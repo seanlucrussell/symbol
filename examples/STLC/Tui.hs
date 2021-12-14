@@ -31,34 +31,28 @@ import qualified Control.Monad.State as S
 -- (which would have to be renderer dependent) that produces a map mapping xy
 -- coordinates on the screen to the path to the term at those coordinates
 
--- type AppInput = (Key, Int) -- Int represents screen width, needed for renderer
--- 
--- 
--- instance SymbolAppInput AppInput where
---   extractInput ((KChar '\t'),_) = Tab
---   extractInput (KBackTab,_)     = BackTab
---   extractInput ((KChar c),_) = Key c
---   extractInput (KEnter,_)    = Enter
---   extractInput (KBS,_)       = Del
---   extractInput (KUp,_)       = UpArrow
---   extractInput (KDown,_)     = DownArrow
---   extractInput (KLeft,_)     = LeftArrow
---   extractInput (KRight,_)     = RightArrow
---   extractInput (KEsc,_)     = Esc
---   extractInput _             = Other
---   extractWidth (_,n) = n
+extractInput (KChar '\t') = Tab
+extractInput KBackTab     = BackTab
+extractInput (KChar c) = Key c
+extractInput KEnter    = Enter
+extractInput KBS       = Del
+extractInput KUp       = UpArrow
+extractInput KDown     = DownArrow
+extractInput KLeft     = LeftArrow
+extractInput KRight     = RightArrow
+extractInput KEsc     = Esc
+extractInput _             = Other
 
-
-serializeToFile :: String -> StateData AppInput -> IO ()
+serializeToFile :: String -> StateData -> IO ()
 serializeToFile f (StateData (SymbolState table program path _ _) _ _) = writeFile f (serialize (table, program, path))
 
-appEvent :: String -> StateData AppInput -> BrickEvent n e -> EventM Name (Next (StateData AppInput))
+appEvent :: String -> StateData -> BrickEvent n e -> EventM Name (Next StateData)
 appEvent file d (VtyEvent (EvKey e [] )) =
              do mExtent <- Brick.Main.lookupExtent MainWindowName
                 case mExtent of
                   Nothing -> error "Couldn't find main window display widget!"
                   Just (Extent _ _ (width, _) _) ->
-                        let next = S.execState (stateHandler (e,width)) d in
+                        let next = S.execState (stateHandler (extractInput e,width)) d in
                         case next of 
                                 (StateData _ Nothing _) -> halt d
                                 -- next line causes application to save every
@@ -72,13 +66,13 @@ appEvent _ d _ = continue d
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
-stateDataFromString :: String -> Maybe (StateData AppInput)
+stateDataFromString :: String -> Maybe StateData
 stateDataFromString s = do (symbolTable, program, path) <- deserialize s
                            let state = StateData (SymbolState symbolTable program path (0,0) Nothing) (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already
--- emptyState :: (StateData AppInput)
+-- emptyState :: StateData
 -- emptyState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) state
 
 theMap :: A.AttrMap
@@ -86,7 +80,7 @@ theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
     ]
 
-theApp :: String -> App (StateData AppInput) e Name
+theApp :: String -> App StateData e Name
 theApp file =
       App { appDraw = drawUI
           , appChooseCursor = showFirstCursor
@@ -95,7 +89,7 @@ theApp file =
           , appAttrMap = const theMap
           }
 
--- main :: IO (StateData AppInput)
+-- main :: IO StateData
 main = do args <- getArgs
           if Prelude.length args /= 1
           then putStrLn "Please supply 1 file name"

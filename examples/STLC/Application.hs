@@ -3,6 +3,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+
+{-# LANGUAGE MultiParamTypeClasses #-}
 module STLC.Application
   ( stateHandler
   , homeHandler
@@ -37,6 +39,8 @@ class SymbolAppInput a where
 
 data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow | RightArrow | Esc | Tab | BackTab |  Other
 
+type PopupData = ([Token], Int)
+
 data SymbolState a = SymbolState
                 { symbolTable :: SymbolTable
                 , tree :: a
@@ -45,10 +49,25 @@ data SymbolState a = SymbolState
                 , popupData :: Maybe PopupData
                 }
 
-type PopupData = ([Token], Int)
+-- so this datatype is getting out of hand. BUT! it works pretty dang well. the
+-- recursive bit at the end means that this thing keeps track of history, so we
+-- can commit and revert changes as batches.
 data StateData a = SymbolAppInput a => StateData (SymbolState Token) (Maybe (FoldMachine a)) (StateData a)
 
 type FoldMachine a = a -> (State (StateData a)) ()
+
+class Movable a where
+  move :: Tree b => a -> Movement b -> Maybe a
+
+class Transformable a where
+  transform :: Tree b => a -> Transformation b -> Maybe a
+
+class Application a b where
+  advance :: a -> b -> Maybe a
+
+class Transaction a where
+  commit :: a -> a
+  revert :: a -> a
 
 -- try to apply a movement
 applyMovement :: SymbolAppInput a => Movement Token -> (State (StateData a)) ()
@@ -114,47 +133,6 @@ applyTransformationPartial t = applyToZipper (try f)
 -- transformations? It does seem slightly simpler, but I end up replicating bits
 -- of it anyhow to communicate w/ the renderer
 
--- so this datatype is getting out of hand. BUT! it works pretty dang well. the
--- recursive bit at the end means that this thing keeps track of history, so we
--- can commit and revert changes as batches.
-
-class Valid a where
-  validate :: a -> Bool
-
--- class Transaction a where
---   commit :: a -> a
---   revert :: a -> a
-
--- class (Valid a, Tree a, Transaction a) => StringEditAtPoint a where
---   overString :: Path -> a -> Bool
---   replaceAtPoint :: String -> Transformation a
-
--- addingNameHandler :: SymbolAppInput a => String -> FoldMachine a
--- addingNameHandler s i = f s (extractInput i)
---         where f " " (Key ' ') = return ()
---               f " " (Key k)   = setName [k]
---               f s   (Key k)   = setName (s ++ [k])
---               f " " Enter     = return ()
---               f s   Enter     = changeState homeHandler id
---               f []  Del       = return ()
---               f [_] Del       = setName " "
---               f s   Del       = setName (Prelude.init s)
---               f _   _         = return ()
-
--- semantics for string reader:
---   some sort of parser to validate string (i.e. int parser, id parser,
---   whatever-else parser).
---   intermediate rendering. some strings may not parse alone, but do parse when
---   all put together. e.g. the string '-' is not a valid integer, but '-1' is.
---   revert changes when you hit enter if the parsed string ain't valid
--- so maybe what we do is have some sort of different thing where we don't
--- validate changes to the zipper until we commit all at once
-
--- so we have a problem, where the data structure isn't getting validated at
--- each step. this is instead happening in the transformations part of the
--- codebase, which is probably the wrong way to do it? or maybe not? i'm not
--- sure actually.
-
 setName :: SymbolAppInput a => String -> (State (StateData a)) ()
 setName s = do changeState (addingNameHandler s)
                t <- getTerm
@@ -202,11 +180,6 @@ getTerm = do SymbolState _ t _ _ _ <- getSymbolState
 getPath :: SymbolAppInput b => (State (StateData b)) Path
 getPath = do SymbolState _ _ p _ _ <- getSymbolState
              return p
-
-getZipper :: SymbolAppInput b => (State (StateData b)) ((Token, Path))
-getZipper = do SymbolState _ t p _ _ <- getSymbolState
-               return (t,p)
-
 getPosition :: SymbolAppInput b => (State (StateData b)) Position
 getPosition = do SymbolState _ _ _ p _ <- getSymbolState
                  return p

@@ -43,10 +43,10 @@ extractInput KRight     = RightArrow
 extractInput KEsc     = Esc
 extractInput _             = Other
 
-serializeToFile :: String -> SymbolState Token -> IO ()
-serializeToFile f (SymbolState table program path _ _ _ _) = writeFile f (serialize (table, program, path))
+serializeToFile :: String -> STLC.Application.App Token -> IO ()
+serializeToFile f (STLC.Application.App table program path _ _ _ _) = writeFile f (serialize (table, program, path))
 
-appEvent :: String -> SymbolState Token -> BrickEvent n e -> EventM Name (Next (SymbolState Token))
+appEvent :: String -> STLC.Application.App Token -> BrickEvent n e -> EventM Name (Next (STLC.Application.App Token))
 appEvent file d (VtyEvent (EvKey e [] )) =
              do mExtent <- Brick.Main.lookupExtent MainWindowName
                 case mExtent of
@@ -54,7 +54,7 @@ appEvent file d (VtyEvent (EvKey e [] )) =
                   Just (Extent _ _ (width, _) _) ->
                         let next = S.execState (stateHandler (extractInput e,width)) d in
                         case next of 
-                                (SymbolState _ _ _ _ _ Nothing _) -> halt d
+                                (STLC.Application.App _ _ _ _ _ Nothing _) -> halt d
                                 -- next line causes application to save every
                                 -- frame. shouldn't do this (what happens if we
                                 -- are in the middle of some operation? should
@@ -66,13 +66,13 @@ appEvent _ d _ = continue d
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
-stateDataFromString :: String -> Maybe (SymbolState Token)
+stateDataFromString :: String -> Maybe (STLC.Application.App Token)
 stateDataFromString s = do (symbolTable, program, path) <- deserialize s
-                           let state = SymbolState symbolTable program path (0,0) Nothing (Just homeHandler) state in
+                           let state = STLC.Application.App symbolTable program path (0,0) Nothing (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already
--- emptyState :: (SymbolState Token)
+-- emptyState :: (STLC.Application.App Token)
 -- emptyState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) state
 
 theMap :: A.AttrMap
@@ -80,16 +80,16 @@ theMap = A.attrMap defAttr
     [ (L.listSelectedAttr, bg brightBlack)
     ]
 
-theApp :: String -> App (SymbolState Token) e Name
-theApp file =
-      App { appDraw = drawUI
+theApp :: String -> Brick.Main.App (STLC.Application.App Token) e Name
+theApp file = Brick.Main.App
+          { appDraw = drawUI
           , appChooseCursor = showFirstCursor
           , appHandleEvent = appEvent file
           , appStartEvent = return
           , appAttrMap = const theMap
           }
 
--- main :: IO (SymbolState Token)
+main :: IO ()
 main = do args <- getArgs
           if Prelude.length args /= 1
           then putStrLn "Please supply 1 file name"

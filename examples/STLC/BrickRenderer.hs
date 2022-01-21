@@ -73,8 +73,8 @@ instance Ord Name where
   PopupName <= MainWindowName = False
   _ <= _ = True
 
-drawUI :: SymbolState Token -> [Widget Name]
-drawUI (SymbolState s t p' x p u _) = (case p of
+drawUI :: App Token -> [Widget Name]
+drawUI (App s t p' x p u _) = (case p of
      Just (l, n) -> [popup x s (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [zipperToWidget s (t,p')]
 

@@ -8,8 +8,8 @@
 module STLC.Application
   ( stateHandler
   , homeHandler
-  , SymbolState (..)
-  , SymbolAppInput (..)
+  , App (..)
+  , SymbolAppInput
   , ApplicationInput (..)
   ) where
 
@@ -26,12 +26,9 @@ import STLC.Transformations
 import STLC.TypeChecker
 
 import Control.Monad.State
-import Control.Monad
 import Data.Map
-import Data.Maybe
 import Data.Text
 import Data.Char
-import qualified Data.Set as S
 
 type SymbolAppInput = (ApplicationInput, Int)
 
@@ -39,38 +36,26 @@ data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow
 
 type PopupData a = ([a], Int)
 
-data SymbolState a = SymbolState
+data App a = App
                 { symbolTable :: SymbolTable
                 , tree :: a
                 , path :: Path
                 , position:: Position
                 , popupData :: Maybe (PopupData a)
                 , next :: Maybe FoldMachine
-                , prev :: SymbolState a
+                , prev :: App a
                 }
 
-type FoldMachine = SymbolAppInput -> State (SymbolState Token) ()
+type FoldMachine = SymbolAppInput -> State (App Token) ()
 
 -- try to apply a movement
-applyMovement :: Movement Token -> State (SymbolState Token) ()
+applyMovement :: Movement Token -> State (App Token) ()
 applyMovement m = do term <- gets tree
                      applyToPath (try (m term))
 
--- ok so what we need is some sort of IndexedTree class, with methods for
--- extracting and updating terms and paths. or something. That then gets wrapped
--- up in a state monad, and the state monad adds the temporal element. getTree,
--- getPath, setTree, setPath are then defined over the IndexedTree class, e.g.
---   getPath :: IndexedTree a => State a Path
---   getTree :: IndexedTree a => State a (Tree b)
---   setPath :: IndexedTree a => Path -> State a ()
---   setTree :: IndexedTree a => Tree b -> State a ()
--- this clearly means IndexedTree should be parameterized by the type of the
--- tree in addition to the type of the general datastructure
-
-
 -- try to apply a transformation, commiting if the transformation leaves the
 -- data structures in a valid state
-applyTransformation :: Transformation Token -> State (SymbolState Token) ()
+applyTransformation :: Transformation Token -> State (App Token) ()
 applyTransformation t = do term <- gets tree
                            path <- gets path
                            case t term path of
@@ -84,7 +69,7 @@ applyTransformation t = do term <- gets tree
 -- like applyTransformation, but doesn't do checking, doesn't commit change.
 -- good for intermediate transitions where the underlying datastructures aren't
 -- sound
-applyTransformationPartial :: Transformation Token -> State (SymbolState Token) ()
+applyTransformationPartial :: Transformation Token -> State (App Token) ()
 applyTransformationPartial t = do term <- gets tree
                                   path <- gets path
                                   case t term path of
@@ -109,16 +94,16 @@ applyTransformationPartial t = do term <- gets tree
 --
 -- so what do we need? some functions:
 --
--- validate :: (SymbolState Token) -> Boolean
--- startTransaction :: State (SymbolState Token) ()
--- commit :: State (SymbolState Token) ()
+-- validate :: (App Token) -> Boolean
+-- startTransaction :: State (App Token) ()
+-- commit :: State (App Token) ()
 --
 -- and an extra element to the UIState data type
--- Transacting :: (SymbolState Token) -> UIState
+-- Transacting :: (App Token) -> UIState
 
 -- ok so state data should maybe accept a Rendering callback or something like
 -- that? something like
---   render :: (SymbolState Token) -> ExtraInfo -> a
+--   render :: (App Token) -> ExtraInfo -> a
 -- ? or maybe we need to be clearer about what info there is that could be
 -- rendered. e.g. have a diff data structure for it:
 --   S = S SymbolTable ((Token, Path)) Position (Maybe ([Token], Int))
@@ -130,7 +115,7 @@ applyTransformationPartial t = do term <- gets tree
 -- transformations? It does seem slightly simpler, but I end up replicating bits
 -- of it anyhow to communicate w/ the renderer
 
-setName :: String -> State (SymbolState Token) ()
+setName :: String -> State (App Token) ()
 setName s = do changeState (addingNameHandler s)
                t <- gets tree
                p <- gets path
@@ -141,30 +126,30 @@ setName s = do changeState (addingNameHandler s)
                p' <- gets path
                applyToSymbolTable (try (updateSymbolTable t' p' (pack s)))
 
-whenOverIdentifier :: State (SymbolState Token) a -> State (SymbolState Token) a -> State (SymbolState Token) a
+whenOverIdentifier :: State (App Token) a -> State (App Token) a -> State (App Token) a
 whenOverIdentifier yes no = do t <- gets tree
                                p <- gets path
                                if overIdentifier t p then yes else no
 
-applyToSymbolTable :: (SymbolTable -> SymbolTable) -> State (SymbolState Token) ()
+applyToSymbolTable :: Tree a => (SymbolTable -> SymbolTable) -> State (App a) ()
 applyToSymbolTable f = modify (\s -> s {symbolTable = f (symbolTable s)})
 
-setPath :: Path -> State (SymbolState Token) ()
+setPath :: Tree a => Path -> State (App a) ()
 setPath = applyToPath . const
 
-setTerm :: Token -> State (SymbolState Token) ()
+setTerm :: Tree a => a -> State (App a) ()
 setTerm = applyToTerm . const
 
-applyToTerm :: (Token -> Token) -> State (SymbolState Token) ()
+applyToTerm :: Tree a => (a -> a) -> State (App a) ()
 applyToTerm f = modify (\s -> s {tree = f (tree s)})
 
-applyToPath :: (Path -> Path) -> State (SymbolState Token) ()
+applyToPath :: Tree a => (Path -> Path) -> State (App a) ()
 applyToPath f = modify (\s -> s {path = f (path s)})
 
-applyToPosition :: (Position -> Position) -> State (SymbolState Token) ()
+applyToPosition :: Tree a => (Position -> Position) -> State (App a) ()
 applyToPosition f = modify (\s -> s {position = f (position s)})
 
-setPopup :: Maybe ([Token], Int) -> State (SymbolState Token) ()
+setPopup :: Tree a => Maybe (PopupData a) -> State (App a) ()
 setPopup x = modify (\s -> s {popupData = x})
 
 -- needs more thought, but heres some improvements:
@@ -187,7 +172,7 @@ selectDown (x,y) = (x,y+1)
 selectUp :: Position -> Position
 selectUp (x,y) = (x,y-1)
 
-getPathMap :: Int -> State (SymbolState Token) PathMap
+getPathMap :: Int -> State (App Token) PathMap
 getPathMap n = do s <- gets symbolTable
                   t <- gets tree
                   return (termToPathMap s n t)
@@ -200,39 +185,38 @@ positionFromPath pathMap path = leastInList positions
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = [position | (position,p) <- toList pathMap, path `elem` p ]
 
-updatePosition :: Int -> State (SymbolState Token) ()
+updatePosition :: Int -> State (App Token) ()
 updatePosition n = do pathMap <- getPathMap n
                       path <- gets path
                       applyToPosition (const (positionFromPath pathMap path))
 
-exitPopup :: State (SymbolState Token) ()
+exitPopup :: State (App Token) ()
 exitPopup = setPopup Nothing >> changeState homeHandler
 
-commit :: State (SymbolState Token) ()
+commit :: Tree a => State (App a) ()
 commit = modify (\s -> s {prev = s})
 
-revert :: State (SymbolState Token) ()
+revert :: Tree a => State (App a) ()
 revert = modify (\s -> prev s)
 
-changeState :: FoldMachine -> State (SymbolState Token) ()
+changeState :: FoldMachine -> State (App Token) ()
 changeState u = modify (\s -> s {next = Just u})
 
-terminate :: State (SymbolState Token) ()
+terminate :: State (App Token) ()
 terminate = modify (\s -> s {next = Nothing})
 
-updatePath :: Int -> State (SymbolState Token) ()
-updatePath n = do SymbolState s t _ p x u h <- get
-                  pMap <- pathFromPosition n
+updatePath :: Int -> State (App Token) ()
+updatePath n = do pMap <- pathFromPosition n
                   case pMap of
-                         Just p' -> put (SymbolState s t p' p x u h)
+                         Just p -> applyToPath (const p)
                          Nothing -> return ()
 
-pathFromPosition :: Int -> State (SymbolState Token) (Maybe Path)
+pathFromPosition :: Int -> State (App Token) (Maybe Path)
 pathFromPosition n = do pathMap <- getPathMap n
                         position <- gets position
                         return (fmap Prelude.head (Data.Map.lookup position pathMap))
 
-selectTerm :: [Token] -> Int -> State (SymbolState Token) ()
+selectTerm :: [Token] -> Int -> State (App Token) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeState (selectingTermHandler l n')
         where n' = mod n (Prelude.length l)
 
@@ -240,16 +224,16 @@ addingNameHandler :: String -> FoldMachine
 addingNameHandler s ((Key k),_) = if isAlphaNum k then setName (s ++ [k]) else return ()
 addingNameHandler s (Enter  ,_) = if s /= "" then changeState homeHandler else return ()
 addingNameHandler s (Del    ,_) = if s /= "" then setName (Prelude.init s) else return ()
-addingNameHandler s ( _     ,_) = return ()
+addingNameHandler _ ( _     ,_) = return ()
 
 selectingTermHandler :: [Token] -> Int -> FoldMachine
-selectingTermHandler l n ((Key 'p'),_) = exitPopup
+selectingTermHandler _ _ ((Key 'p'),_) = exitPopup
 selectingTermHandler l n (Enter    ,_) = exitPopup >> applyTransformation (replaceAtPoint' (l!!n))
 selectingTermHandler l n ((Key 'k'),_) = selectTerm l (n-1)
 selectingTermHandler l n ((Key 'j'),_) = selectTerm l (n+1)
 selectingTermHandler l n (UpArrow  ,_) = selectTerm l (n-1)
 selectingTermHandler l n (DownArrow,_) = selectTerm l (n+1)
-selectingTermHandler l n (_        ,_) = return ()
+selectingTermHandler _ _ (_        ,_) = return ()
 
 homeHandler :: FoldMachine
 -- homeHandler ((Key 'n') ,n) = applyMovement nextHole >> updatePosition n
@@ -264,9 +248,9 @@ homeHandler ((Key 'j') ,n) = applyMovement selectFirst >> updatePosition n
 homeHandler ((Key 'l') ,n) = applyMovement selectNext >> updatePosition n
 homeHandler ((Key 'h') ,n) = applyMovement selectPrev >> updatePosition n
 homeHandler ((Key 'k') ,n) = applyMovement goUp >> updatePosition n
-homeHandler ((Key 's') ,n) = applyTransformation swapUp
-homeHandler ((Key 'S') ,n) = applyTransformation swapDown
-homeHandler ((Key 'x') ,n) = applyTransformation remove
+homeHandler ((Key 's') ,_) = applyTransformation swapUp
+homeHandler ((Key 'S') ,_) = applyTransformation swapDown
+homeHandler ((Key 'x') ,_) = applyTransformation remove
 homeHandler ((Key 'c') ,_) = commit
 homeHandler ((Key 'u') ,_) = revert
 homeHandler (Esc       ,_) = terminate
@@ -286,9 +270,6 @@ homeHandler ((Key 'b') ,_) = applyTransformation (replaceAtPoint' BoolType)
 homeHandler ((Key '>') ,_) = applyTransformation (replaceAtPoint' (FunctionType Unknown Unknown))
 homeHandler ((Key '\\'),_) = applyTransformation (replaceAtPoint' (Function Unknown Unknown Unknown))
 homeHandler (_         ,_) = return ()
-
-appHasTerminated :: Maybe (FoldMachine) -> Bool
-appHasTerminated = isNothing
 
 stateHandler :: FoldMachine
 stateHandler k = do u <- gets next

@@ -13,6 +13,7 @@ module Renderer
   , treeToStack
   ) where
 
+
 import AST
 import Utilities
 
@@ -20,6 +21,12 @@ import Data.Text.Prettyprint.Doc
 import qualified Data.Text as T
 import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
 import Data.Map
+
+-- need new concept: renderer should just be a function that takes an int for
+-- the screen width and returns a 2d map of chars+path info
+
+-- class Render a where
+--   render :: Int -> a -> (Int,Int) -> Maybe (Char,Attribute,[Path])
 
 -- contains info on parent of a given term
 data RenderContext a = RenderContext a Int

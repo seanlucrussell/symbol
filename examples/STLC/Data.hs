@@ -1,19 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module STLC.Data
-  ( Token
-    ( Identifier
-    , Function
-    , Application
-    , TrueTerm
-    , FalseTerm
-    , Conditional
-    , Unknown
-    , FunctionType
-    , BoolType
-    , Assignment
-    , Program)
-    , validIdentifier
-    , overIdentifier
+  ( Token (..)
   ) where
 
 import AST
@@ -28,7 +15,9 @@ import qualified Data.Text as T
 {-# LANGUAGE XOverloadedStrings #-}
 
 data Token = Identifier Int
+           | Name (Maybe String)
            | Function Token Token Token
+           | Assignment Token Token Token
            | Application Token Token
            | TrueTerm
            | FalseTerm
@@ -36,7 +25,6 @@ data Token = Identifier Int
            | Unknown
            | FunctionType Token Token
            | BoolType
-           | Assignment Token Token Token
            | Program [Token]
            deriving (Eq,Show)
 
@@ -56,22 +44,3 @@ instance Tree Token where
    update (Assignment _ _ _) [a,b,c] = Just (Assignment a b c)
    update (Program _) ts = Just (Program ts)
    update _ _ = Nothing
-
-validIdentifier :: Token -> Token
-validIdentifier t = (Identifier (findValidAssignmentId t))
-
-findValidAssignmentId :: Token -> Int
-findValidAssignmentId t = firstNumberNotInList (findAllIds t)
-
-findAllIds :: Token -> [Int]
-findAllIds (Identifier i) = [i]
-findAllIds t = join (fmap findAllIds (children t))
-
--- Includes places where the identifier is still an UnknownToken
-overIdentifier :: Token -> Path -> Bool
-overIdentifier t p = fromMaybe False (do p' <- goUp t p
-                                         underCursor <- treeUnderCursor p' t
-                                         return (case underCursor of
-                                                        Function _ _ _ -> Prelude.last p == 0
-                                                        Assignment _ _ _ -> Prelude.last p == 0
-                                                        _ -> False))

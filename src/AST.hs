@@ -10,19 +10,16 @@ module AST
   , replaceAtIndex
   , replaceAtPoint
   , validatePath
-  , SymbolTable
   ) where
+import Utilities
 import qualified Data.Text as T
 import Data.Maybe
 import Control.Monad
-import qualified Data.Map
 
 class Tree a where
   children :: a -> [a]
   update :: a -> [a] -> Maybe a
 type Path = [Int]
-
-type SymbolTable = Data.Map.Map Int T.Text
 
 validatePath :: Tree a => a -> Path -> Bool
 validatePath t [] = False
@@ -51,10 +48,11 @@ isLeaf t = case children t of
                 _ -> False
 
 select :: Tree a => Int -> a -> Maybe a
-select n t = findChild n (children t)
-        where findChild 0 (t:ts) = Just t
-              findChild n (t:ts) = findChild (n-1) ts
-              findChild _ _ = Nothing
+select n = safeListIndex n . children
+-- select n t = findChild n (children t)
+--         where findChild 0 (t:ts) = Just t
+--               findChild n (t:ts) = findChild (n-1) ts
+--               findChild _ _ = Nothing
 
 searchTree :: Tree a => (a -> Bool) -> a -> [a]
 searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (children t))

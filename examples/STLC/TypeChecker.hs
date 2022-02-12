@@ -7,7 +7,6 @@ import AST
 import Utilities
 
 import Control.Monad
-import qualified Data.Map as M
 
 data Type = BoolT
           | FunctionT Type Type
@@ -16,14 +15,12 @@ data Type = BoolT
 data Trm = Ref Int
          | T
          | F
-         | Fn Id Type Trm
+         | Fn Type Trm
          | App Trm Trm
          | Cond Trm Trm Trm
          | UnknownTrm
           deriving (Eq,Show)
-data Assign = Assign Id Type Trm
-          deriving (Eq,Show)
-data Id = Id Int | UnknownId
+data Assign = Assign Type Trm
           deriving (Eq,Show)
 data Prog = Prog [Assign]
           deriving (Eq,Show)
@@ -31,11 +28,6 @@ data Prog = Prog [Assign]
 chooseMoreSpecificType :: Type -> Type -> Type
 chooseMoreSpecificType UnknownT t = t
 chooseMoreSpecificType t        _ = t
-
-valId :: Context -> Token -> Maybe Id
-valId _ (Identifier t) = Just (Id t)
-valId _ Unknown        = Just UnknownId
-valId _ _              = Nothing
 
 valType :: Context -> Token -> Maybe Type
 valType _ BoolType = Just BoolT
@@ -46,7 +38,7 @@ valType c (FunctionType a b) = do a' <- valType c a
 valType _ _ = Nothing
 
 valTrm :: Context -> Token -> Maybe Trm
-valTrm c (Identifier t) = M.lookup t c >> return (Ref t)
+valTrm c (Identifier t) = safeListIndex t c >> return (Ref t)
 valTrm c (Unknown) = Just UnknownTrm
 valTrm c (TrueTerm) = Just T
 valTrm c (FalseTerm) = Just F
@@ -67,27 +59,23 @@ valTrm c (Conditional x y z) = do x' <- valTrm c x
                                   guard (xt == BoolT || xt == UnknownT)
                                   guard (typeEquality yt zt)
                                   return (Cond x' y' z')
-valTrm c (Function x y z) = do x' <- valId c x
-                               y' <- valType c y
-                               newContext <- updateContext x' y' c
-                               z' <- valTrm newContext z
-                               return (Fn x' y' z')
+valTrm c (Function (Name _) y z) = do y' <- valType c y
+                                      z' <- valTrm (updateContext y' c) z
+                                      return (Fn y' z')
 valTrm _ _ = Nothing
 
 valAssign :: Context -> Token -> Maybe Assign
-valAssign c (Assignment x y z) = do x' <- valId c x
-                                    y' <- valType c y
-                                    z' <- valTrm c z
-                                    zt <- typeOf c z
-                                    guard (typeEquality y' zt)
-                                    return (Assign x' y' z')
+valAssign c (Assignment (Name _) y z) = do y' <- valType c y
+                                           z' <- valTrm c z
+                                           zt <- typeOf c z
+                                           guard (typeEquality y' zt)
+                                           return (Assign y' z')
 valAssign _ _ = Nothing
 
 valAssigns :: Context -> [Token] -> Maybe [Assign]
 valAssigns _ [] = Just []
-valAssigns c (a:as) = do a'@(Assign i t b) <- valAssign c a
-                         c' <- updateContext i t c
-                         as' <- valAssigns c' as
+valAssigns c (a:as) = do a'@(Assign t b) <- valAssign c a
+                         as' <- valAssigns (updateContext t c) as
                          return (a':as')
                          
 valProg :: Context -> Token -> Maybe Prog
@@ -106,12 +94,10 @@ typeEquality _ _ = False
 
 -- returns Nothing if the type checking is invalid
 typeOf :: Context -> Token -> Maybe Type
-typeOf c (Identifier i) = M.lookup i c
-typeOf c (Function i t b) = do i' <- valId c i
-                               argType <- valType c t
-                               newContext <- updateContext i' argType c
-                               bodyType <- typeOf newContext b
-                               return (FunctionT argType bodyType)
+typeOf c (Identifier i) = safeListIndex i c
+typeOf c (Function (Name _) t b) = do argType <- valType c t
+                                      bodyType <- typeOf (updateContext argType c) b
+                                      return (FunctionT argType bodyType)
 typeOf c (Application f x) = do fType <- typeOf c f
                                 xType <- typeOf c x
                                 case fType of
@@ -129,11 +115,10 @@ typeOf c (Conditional b x y) = do bType <- typeOf c b
 typeOf _ Unknown = Just UnknownT
 typeOf _ _ = Nothing
 
-type Context = M.Map Int Type
+type Context = [Type]
 
 emptyContext :: Context
-emptyContext = M.empty
+emptyContext = []
 
-updateContext :: Id -> Type -> Context -> Maybe Context
-updateContext (Id i)    t = Just . M.insert i t
-updateContext UnknownId _ = Just
+updateContext :: Type -> Context -> Context
+updateContext = (:)

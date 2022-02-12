@@ -37,10 +37,9 @@ data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow
 type PopupData a = ([a], Int)
 
 data App a = App
-                { symbolTable :: SymbolTable
-                , tree :: a
+                { tree :: a
                 , path :: Path
-                , position:: Position
+                , position:: (Int, Int)
                 , popupData :: Maybe (PopupData a)
                 , next :: Maybe FoldMachine
                 , prev :: App a
@@ -106,9 +105,9 @@ applyTransformationPartial t = do term <- gets tree
 --   render :: (App Token) -> ExtraInfo -> a
 -- ? or maybe we need to be clearer about what info there is that could be
 -- rendered. e.g. have a diff data structure for it:
---   S = S SymbolTable ((Token, Path)) Position (Maybe ([Token], Int))
+--   S = S SymbolTable ((Token, Path)) (Int, Int) (Maybe ([Token], Int))
 -- or even
---   MainWindowData = MainWindowData SymbolTable ((Token, Path)) Position
+--   MainWindowData = MainWindowData SymbolTable ((Token, Path)) (Int, Int)
 --   SelectionPopupData = SelectionPopupData [Token] Int
 --   AppData = MainWindow MainWindowData | Popup SelectionPopupData MainWindowData
 -- so then what am I really saving by having this new model for managing app
@@ -120,19 +119,23 @@ setName s = do changeState (addingNameHandler s)
                t <- gets tree
                p <- gets path
                if treeUnderCursor p t == (Just Unknown)
-               then applyTransformationPartial (replaceAtPoint' (validIdentifier t))
+               then applyTransformationPartial (replaceAtPoint' undefined)
                else return ()
                t' <- gets tree
                p' <- gets path
-               applyToSymbolTable (try (updateSymbolTable t' p' (pack s)))
+               -- applyToSymbolTable (try (updateSymbolTable t' p' (pack s)))
+               -- error "Need to update relevant Name"
+               applyTransformationPartial (replaceAtPoint' (Name (Just s)))
+
+overIdentifier :: Token -> Path -> Bool
+overIdentifier t p = case treeUnderCursor p t of
+                        Just (Name _) -> True
+                        _ -> False
 
 whenOverIdentifier :: State (App Token) a -> State (App Token) a -> State (App Token) a
 whenOverIdentifier yes no = do t <- gets tree
                                p <- gets path
                                if overIdentifier t p then yes else no
-
-applyToSymbolTable :: Tree a => (SymbolTable -> SymbolTable) -> State (App a) ()
-applyToSymbolTable f = modify (\s -> s {symbolTable = f (symbolTable s)})
 
 setPath :: Tree a => Path -> State (App a) ()
 setPath = applyToPath . const
@@ -146,7 +149,7 @@ applyToTerm f = modify (\s -> s {tree = f (tree s)})
 applyToPath :: Tree a => (Path -> Path) -> State (App a) ()
 applyToPath f = modify (\s -> s {path = f (path s)})
 
-applyToPosition :: Tree a => (Position -> Position) -> State (App a) ()
+applyToPosition :: Tree a => ((Int, Int) -> (Int, Int)) -> State (App a) ()
 applyToPosition f = modify (\s -> s {position = f (position s)})
 
 setPopup :: Tree a => Maybe (PopupData a) -> State (App a) ()
@@ -163,32 +166,31 @@ setPopup x = modify (\s -> s {popupData = x})
 --     goes for short lines
 --  might need a bounding box to accomadate some of these things. e.g. min/max
 --  search space so when we search down/up we know when to stop
-selectRight :: Position -> Position
+selectRight :: (Int, Int) -> (Int, Int)
 selectRight (x,y) = (x+1,y)
-selectLeft :: Position -> Position
+selectLeft :: (Int, Int) -> (Int, Int)
 selectLeft (x,y) = (x-1,y)
-selectDown :: Position -> Position
+selectDown :: (Int, Int) -> (Int, Int)
 selectDown (x,y) = (x,y+1)
-selectUp :: Position -> Position
+selectUp :: (Int, Int) -> (Int, Int)
 selectUp (x,y) = (x,y-1)
 
-getPathMap :: Int -> State (App Token) PathMap
-getPathMap n = do s <- gets symbolTable
-                  t <- gets tree
-                  return (termToPathMap s n t)
+getRendering :: Int -> State (App Token) Rendering
+getRendering n = do t <- gets tree
+                    return (render n (t,[] :: [String]))
 
-positionFromPath :: PathMap -> Path -> Position
-positionFromPath pathMap path = leastInList positions
-        where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
-              leastInList [] = error "Path not in PathMap. How did that happen?"
-              leastInList (l:[]) = l
-              leastInList (l:ls) = lowest l (leastInList ls)
-              positions = [position | (position,p) <- toList pathMap, path `elem` p ]
+-- positionFromPath :: Rendering -> Path -> (Int, Int)
+-- positionFromPath pathMap path = leastInList positions
+--         where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
+--               leastInList [] = error "Path not in Rendering. How did that happen?"
+--               leastInList (l:[]) = l
+--               leastInList (l:ls) = lowest l (leastInList ls)
+--               positions = [position | (position,p) <- toList pathMap, path `elem` p ]
 
-updatePosition :: Int -> State (App Token) ()
-updatePosition n = do pathMap <- getPathMap n
-                      path <- gets path
-                      applyToPosition (const (positionFromPath pathMap path))
+-- updatePosition :: Int -> State (App Token) ()
+-- updatePosition n = do pathMap <- getRendering n
+--                       path <- gets path
+--                       applyToPosition (const (positionFromPath pathMap path))
 
 exitPopup :: State (App Token) ()
 exitPopup = setPopup Nothing >> changeState homeHandler
@@ -212,9 +214,11 @@ updatePath n = do pMap <- pathFromPosition n
                          Nothing -> return ()
 
 pathFromPosition :: Int -> State (App Token) (Maybe Path)
-pathFromPosition n = do pathMap <- getPathMap n
+pathFromPosition n = do pathMap <- getRendering n
                         position <- gets position
-                        return (fmap Prelude.head (Data.Map.lookup position pathMap))
+                        return (fmap Prelude.head (case Data.Map.lookup position pathMap of 
+                                                           Just c -> Just (Renderer.paths c)
+                                                           Nothing -> Nothing))
 
 selectTerm :: [Token] -> Int -> State (App Token) ()
 selectTerm l n = setPopup (Just (l,n')) >> changeState (selectingTermHandler l n')
@@ -242,12 +246,12 @@ homeHandler :: FoldMachine
 -- homeHandler (LeftArrow ,n) = applyMovement prevLeaf >> updatePosition n
 -- homeHandler (LeftArrow ,n) = applyToPosition selectLeft >> updatePath n
 -- homeHandler (RightArrow,n) = applyToPosition selectRight >> updatePath n
-homeHandler (Tab       ,n) = applyMovement nextLeaf >> updatePosition n
-homeHandler (BackTab   ,n) = applyMovement prevLeaf >> updatePosition n
-homeHandler ((Key 'j') ,n) = applyMovement selectFirst >> updatePosition n
-homeHandler ((Key 'l') ,n) = applyMovement selectNext >> updatePosition n
-homeHandler ((Key 'h') ,n) = applyMovement selectPrev >> updatePosition n
-homeHandler ((Key 'k') ,n) = applyMovement goUp >> updatePosition n
+homeHandler (Tab       ,n) = applyMovement nextLeaf
+homeHandler (BackTab   ,n) = applyMovement prevLeaf
+homeHandler ((Key 'j') ,n) = applyMovement selectFirst
+homeHandler ((Key 'l') ,n) = applyMovement selectNext
+homeHandler ((Key 'h') ,n) = applyMovement selectPrev
+homeHandler ((Key 'k') ,n) = applyMovement goUp
 homeHandler ((Key 's') ,_) = applyTransformation swapUp
 homeHandler ((Key 'S') ,_) = applyTransformation swapDown
 homeHandler ((Key 'x') ,_) = applyTransformation remove
@@ -257,8 +261,7 @@ homeHandler (Esc       ,_) = terminate
 homeHandler (UpArrow   ,n) = applyToPosition selectUp >> updatePath n
 homeHandler (DownArrow ,n) = applyToPosition selectDown >> updatePath n
 homeHandler ((Key 'r') ,_) = whenOverIdentifier (setName "") (return ())
-homeHandler ((Key 'p') ,n) = whenOverIdentifier (return ()) (do updatePosition n
-                                                                t <- gets tree
+homeHandler ((Key 'p') ,n) = whenOverIdentifier (return ()) (do t <- gets tree
                                                                 p <- gets path
                                                                 selectTerm (possibleTerms t p) 0)
 homeHandler ((Key 'O') ,_) = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))

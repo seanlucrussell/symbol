@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module STLC.Transformations 
   ( possibleTerms
-  , updateSymbolTable
   ) where
 
 import AST
@@ -21,19 +20,19 @@ import Data.Maybe
 import Control.Monad
 import Control.Applicative
 
-namedVariables :: Token -> [Token]
-namedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
+-- namedVariables :: Token -> [Token]
+-- namedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
 
-allIdentifierDefinitions :: Token -> [Token]
-allIdentifierDefinitions tree = searchTree test tree
-        where test (Function (Identifier _)  _ _) = True
-              test (Assignment (Identifier _) _ _) = True
-              test  _ = False
+-- allIdentifierDefinitions :: Token -> [Token]
+-- allIdentifierDefinitions tree = searchTree test tree
+--         where test (Function _ _) = True
+--               test (Assignment _ _) = True
+--               test  _ = False
 
-extractIdentifier :: Token -> Maybe Token
-extractIdentifier (Function i _ _) = Just i
-extractIdentifier (Assignment i _ _) = Just i
-extractIdentifier _ = Nothing
+-- extractIdentifier :: Token -> Maybe Token
+-- extractIdentifier (Function i _ _) = Just i
+-- extractIdentifier (Assignment i _ _) = Just i
+-- extractIdentifier _ = Nothing
 
 extractType :: Token -> Maybe Token
 extractType (Function _ t _) = Just t
@@ -48,25 +47,35 @@ typeToArity _ = Nothing
 -- If arity is not well defined (i.e. final type is Unknown), this evaluates to
 -- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
 -- (which may be 0, for identifiers which refer to non-function values)
-identifierArity :: Token -> Token -> Maybe Integer
-identifierArity id tree = findIdentifierDefinition id tree >>= extractType >>= typeToArity
+identifierArity :: Path -> Token -> Token -> Maybe Integer
+identifierArity path id tree = findIdentifierDefinition path id tree >>= extractType >>= typeToArity
 
--- to compute arity, we need to find the original definition of the term. this
--- could be a function or it could be an assignment
-findIdentifierDefinition :: Token -> Token -> Maybe Token
-findIdentifierDefinition id tree = listToMaybe (searchTree test tree)
-        where test t = fromMaybe False (fmap (==id) (extractIdentifier t))
+findIdentifierDefinition :: Path -> Token -> Token -> Maybe Token
+findIdentifierDefinition path (Identifier n) tree = contextAtPoint path tree >>= safeListIndex n
+findIdentifierDefinition _ _ _ = Nothing
 
-functionCalls :: Token -> [Token]
-functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- namedVariables t]
+contextAtPoint :: Path -> Token -> Maybe [Token]
+contextAtPoint [] t = Just []
+contextAtPoint (1:ns) (Assignment _ t b) = fmap (t:) (contextAtPoint ns b)
+contextAtPoint (1:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
+contextAtPoint (n:ns) t = do child <- select n t
+                             contextAtPoint ns child
+
+functionCalls :: Path -> Token -> [Token]
+functionCalls p t = concat [ fmap (app x) [0..(n x)] | x <- context]
         where app x 0 = x
               app x n = Application (app x (n-1)) Unknown
-              n x = fromMaybe 0 (identifierArity x t)
+              n x = fromMaybe 0 (identifierArity p x t)
+              context = fromMaybe [] (contextAtPoint p t)
+-- functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- namedVariables t]
+--         where app x 0 = x
+--               app x n = Application (app x (n-1)) Unknown
+--               n x = fromMaybe 0 (identifierArity x t)
 
 standardTerms :: [Token]
 standardTerms = [ TrueTerm
                 , FalseTerm
-                , Function Unknown Unknown Unknown
+                , Function (Name Nothing) Unknown Unknown
                 , Conditional Unknown Unknown Unknown
                 , FunctionType Unknown Unknown
                 , BoolType
@@ -76,9 +85,4 @@ termTypeChecks :: Token -> Path -> Token -> Bool
 termTypeChecks t' p t = fromMaybe False (fmap validateProgram (replaceAtPoint t p t'))
 
 possibleTerms :: Token -> Path -> [Token]
-possibleTerms t p = filter (termTypeChecks t p) (functionCalls t ++ standardTerms)
-
-updateSymbolTable :: Token -> Path -> T.Text -> SymbolTable -> Maybe SymbolTable
-updateSymbolTable t' p t s = case treeUnderCursor p t' of
-        Just (Identifier i) -> Just (M.insert i t s)
-        _ -> Nothing
+possibleTerms t p = filter (termTypeChecks t p) (functionCalls p t ++ standardTerms)

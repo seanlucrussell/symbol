@@ -14,10 +14,12 @@ import Text.ParserCombinators.Parsec
 
 data Tree a = Tree a [Tree a]
 
-type S = (SymbolTable, Token, Path)
+type S = (Token, Path)
 
 tokenToTree :: Token -> Tree String
 tokenToTree (Identifier n) = Tree ("Id:" ++ show n) []
+tokenToTree (Name Nothing) = Tree "EmptyName" []
+tokenToTree (Name (Just n)) = Tree ("Name:" ++ n) []
 tokenToTree (Function a b c) = Tree "Fn" (fmap tokenToTree [a,b,c])
 tokenToTree (Application a b) = Tree "App" (fmap tokenToTree [a,b])
 tokenToTree TrueTerm         = Tree "T" []
@@ -26,11 +28,13 @@ tokenToTree (Conditional a b c) = Tree "If" (fmap tokenToTree [a,b,c])
 tokenToTree Unknown      = Tree "Unknown" []
 tokenToTree (FunctionType a b) = Tree "FnT" (fmap tokenToTree [a,b])
 tokenToTree BoolType     = Tree "BoolT" []
-tokenToTree (Assignment  a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
+tokenToTree (Assignment a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
 tokenToTree (Program         ts ) = Tree "Prog" (fmap tokenToTree ts)
 
 treeToToken :: Tree String -> Maybe Token
 treeToToken (Tree ('I':'d':':':n) []) = readMaybe n >>= (Just . Identifier)
+treeToToken (Tree ('N':'a':'m':'e':':':n) []) = Just (Name (Just n))
+treeToToken (Tree "EmptyName" []) = Just (Name Nothing)
 treeToToken (Tree "Fn"            ts) = do [a,b,c] <- mapM treeToToken ts
                                            return (Function a b c)
 treeToToken (Tree "App"           ts) = do [a,b] <- mapM treeToToken ts
@@ -57,17 +61,12 @@ serializeTree t = serializeWithIndents t 0
               serializeWithIndents (Tree value subtrees) n = replicate n ' ' ++ foldl (subtreeFold (n+1)) ("(" ++ value) subtrees ++ ")"
               subtreeFold n b a = b ++ "\n" ++ serializeWithIndents a n
 
-tableToTree :: SymbolTable -> Tree String
-tableToTree table = Tree "SymbolTable" (fmap keyValToTree (Data.Map.toList table))
-        where keyValToTree (k,v) = Tree "Key" [Tree (show k) [], Tree (Data.Text.unpack v) []]
-
 pathToTree :: Path -> Tree String
 pathToTree path = Tree "Path" (fmap intToTree path)
         where intToTree n = Tree (show n) []
 
 serialize :: S -> String
-serialize (table, program, path) = serializeTree (Tree "Data" [ tableToTree table
-                                                              , tokenToTree program
+serialize (program, path) = serializeTree (Tree "Data" [ tokenToTree program
                                                               , pathToTree path])
 
 
@@ -100,14 +99,6 @@ treeToPath (Tree "Path" subtrees) = mapM treeToInt subtrees
               treeToInt _ = Nothing
 treeToPath _ = Nothing
 
-treeToTable :: Tree String -> Maybe SymbolTable
-treeToTable (Tree "SymbolTable" subtrees) = do keyValueList <- mapM treeToKeyValuePair subtrees
-                                               return (Data.Map.fromList keyValueList)
-        where treeToKeyValuePair (Tree "Key" [Tree k [],Tree v []]) = do n <- readMaybe k
-                                                                         return (n, Data.Text.pack v)
-              treeToKeyValuePair _ = Nothing
-treeToTable _ = Nothing
-
 -- need to make sure program is valid
 treeToProgram :: Tree String -> Maybe Token
 treeToProgram = treeToToken
@@ -116,14 +107,12 @@ treeToProgram = treeToToken
 --                                           return (Tree token subPrograms)
 
 -- path should point to a valid location in the program
--- every symbol used in program should be defined in symbol table
 deserialize :: String -> Maybe S
 deserialize s = do tree <- deserializeTree s
                    case tree of
-                        Tree "Data" [a,b,c] -> do table <- treeToTable a
-                                                  program <- treeToProgram b
-                                                  path <- treeToPath c
-                                                  return (table, program, path)
+                        Tree "Data" [b,c] -> do program <- treeToProgram b
+                                                path <- treeToPath c
+                                                return (program, path)
                         _ -> Nothing
                         
 

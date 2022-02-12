@@ -44,7 +44,7 @@ extractInput KEsc     = Esc
 extractInput _             = Other
 
 serializeToFile :: String -> STLC.Application.App Token -> IO ()
-serializeToFile f (STLC.Application.App table program path _ _ _ _) = writeFile f (serialize (table, program, path))
+serializeToFile f (STLC.Application.App program path _ _ _ _) = writeFile f (serialize (program, path))
 
 appEvent :: String -> STLC.Application.App Token -> BrickEvent n e -> EventM Name (Next (STLC.Application.App Token))
 appEvent file d (VtyEvent (EvKey e [] )) =
@@ -54,7 +54,7 @@ appEvent file d (VtyEvent (EvKey e [] )) =
                   Just (Extent _ _ (width, _) _) ->
                         let next = S.execState (stateHandler (extractInput e,width)) d in
                         case next of 
-                                (STLC.Application.App _ _ _ _ _ Nothing _) -> halt d
+                                (STLC.Application.App _ _ _ _ Nothing _) -> halt d
                                 -- next line causes application to save every
                                 -- frame. shouldn't do this (what happens if we
                                 -- are in the middle of some operation? should
@@ -67,8 +67,8 @@ customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
 stateDataFromString :: String -> Maybe (STLC.Application.App Token)
-stateDataFromString s = do (symbolTable, program, path) <- deserialize s
-                           let state = STLC.Application.App symbolTable program path (0,0) Nothing (Just homeHandler) state in
+stateDataFromString s = do (program, path) <- deserialize s
+                           let state = STLC.Application.App program path (0,0) Nothing (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already

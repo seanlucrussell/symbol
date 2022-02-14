@@ -47,6 +47,9 @@ yMax m = maximum (fmap snd (keys m))
 renderAsWidget :: Render a => a -> Widget Name
 renderAsWidget = renderingToWidget . render 100
 
+renderForPopup :: Render a => a -> Widget Name
+renderForPopup x = renderingToWidget (Data.Map.map (\x -> x {style = Highlight}) (render 100 x))
+
 renderWithPathHighlighted :: Render a => Path -> Int -> a -> Widget Name
 renderWithPathHighlighted p n = renderingToWidget . highlightAtPath p . render n
 
@@ -98,8 +101,9 @@ popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.
         total = show (Vec.length (l^.(L.listElementsL)))
         listDrawElement :: Bool -> Token -> Widget Name
         listDrawElement selected a = C.hCenter $ hLimit 35 $ vLimit 1 $
-                                (if selected then modifyDefAttr (<> defAttr `withStyle` standout) else id)
-                                (renderAsWidget (a,renderContext)) Brick.<+> Brick.fill ' '
+                                if selected 
+                                then renderForPopup (a,renderContext) Brick.<+> modifyDefAttr (<> defAttr `withStyle` standout) (Brick.fill ' ')
+                                else renderAsWidget (a,renderContext) Brick.<+> Brick.fill ' '
         box = hLimit 35 $
               vLimit 15 $
               L.renderList listDrawElement True l

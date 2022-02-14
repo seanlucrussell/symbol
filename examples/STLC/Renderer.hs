@@ -117,25 +117,25 @@ renderToken (Identifier i) context p = annotate (Location p) $ annotate Cyan (pr
 renderToken (Name (Just "")) context p = annotate (Location p) $ " "
 renderToken (Name (Just n)) context p = annotate (Location p) $ annotate Cyan (pretty n)
 renderToken (Name Nothing) context p = annotate (Location p) $ annotate Cyan ("_____")
-renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> renderToken x context (0:p) <> ":" <> renderToken y context (1:p) <> ".", renderToken z (show x:context) (2:p)]))
+renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> renderToken x context (p ++ [0]) <> ":" <> renderToken y context (p ++ [1]) <> ".", renderToken z (show x:context) (p ++ [2])]))
 renderToken (Application x y) context p  = annotate (Location p) $ align (sep [x', y'])
-        where x' = renderToken x context (0:p)
-              y' = renderToken y context (1:p)
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
 renderToken TrueTerm context p = annotate (Location p) $ annotate Red "True"
 renderToken FalseTerm context p = annotate (Location p) $ annotate Red "False"
 renderToken (Conditional x y z) context p  = annotate (Location p) $ align (sep ["if", x', "then", y', "else", z'])
-        where x' = renderToken x context (0:p)
-              y' = renderToken y context (1:p)
-              z' = renderToken z context (2:p)
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
+              z' = renderToken z context (p ++ [2])
 renderToken Unknown context p = annotate (Location p) $ "_____"
-renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [renderToken x context (0:p), "->", renderToken y context (1:p)])
+renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [renderToken x context (p ++ [0]), "->", renderToken y context (p ++ [1])])
 renderToken BoolType context p = annotate (Location p) $ annotate Yellow "Bool"
 renderToken (Assignment x y z) context p  = annotate (Location p) $ x' <+> ":" <+> y' <> line <> x' <+> "=" <+> z'
-        where x' = renderToken x context (0:p)
-              y' = renderToken y context (1:p)
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
               z' = renderToken z (case x of 
                                 Name Nothing -> "?":context
-                                Name (Just n) -> n:context) (2:p)
+                                Name (Just n) -> n:context) (p ++ [2])
 -- renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line x)
 renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line (f context x 0))
         where f context (t@(Assignment (Name n) _ _):ts) i = renderToken t context [i]:f ((case n of

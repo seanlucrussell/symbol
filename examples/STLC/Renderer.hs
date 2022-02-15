@@ -48,12 +48,13 @@ import Data.Text
 
 renderContextAtPoint :: Path -> Token -> [String]
 renderContextAtPoint [] _ = []
-renderContextAtPoint (2:ps) (Function (Name i) _ t) = (case i of
-                Just n -> n
-                Nothing -> ""):renderContextAtPoint ps t
-renderContextAtPoint (2:ps) (Assignment (Name i) _ t) = (case i of
-                Just n -> n
-                Nothing -> ""):renderContextAtPoint ps t
+renderContextAtPoint (p:ps) (Program a) = renderContextAtPoint ps (children (Program a) !! p) ++ Prelude.reverse (fmap f (Prelude.take p a))
+        where f (Assignment n _ _) = extractName n
+              f _ = error "Non-assignment at top level"
+renderContextAtPoint (2:ps) (Function n _ t) = renderContextAtPoint ps t ++ [extractName n]
+-- renderContextAtPoint (2:ps) (Assignment (Name i) _ t) = (case i of
+                -- Just n -> n
+                -- Nothing -> ""):renderContextAtPoint ps t
 renderContextAtPoint (p:ps) t = renderContextAtPoint ps (children t !! p)
 
 forward :: Int -> (Int,Int) -> (Int,Int)
@@ -102,22 +103,19 @@ style [] = Renderer.Default
 data Annotation = Highlight | Yellow | White | Green | Blue | Magenta | Cyan | Red | Location Path deriving (Show)
 
 extractName :: Token -> String
-extractName (Function (Name (Just n)) _ _) = n
-extractName (Function (Name Nothing) _ _) = "?"
-extractName (Assignment (Name (Just n)) _ _) = n
-extractName (Assignment (Name Nothing) _ _) = "?"
+extractName (Name (Just n)) = n
+extractName (Name Nothing) = "?"
 extractName t = error "trying to extract name from token " ++ show t
 
--- renderTerm' _ (Identifier i)  = annotate Cyan (case M.lookup i s of
---                    Just "" -> " "
---                    Just i' -> pretty i'
---                    Nothing -> error ("id lookup failed in renderer! id number was " ++ show i))
 renderToken :: Token -> [String] -> Path -> Doc Annotation
 renderToken (Identifier i) context p = annotate (Location p) $ annotate Cyan (pretty (context!!i))
 renderToken (Name (Just "")) context p = annotate (Location p) $ " "
 renderToken (Name (Just n)) context p = annotate (Location p) $ annotate Cyan (pretty n)
 renderToken (Name Nothing) context p = annotate (Location p) $ annotate Cyan ("_____")
-renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> renderToken x context (p ++ [0]) <> ":" <> renderToken y context (p ++ [1]) <> ".", renderToken z (show x:context) (p ++ [2])]))
+renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> x' <> ":" <> y' <> ".", z' ]))
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
+              z' = renderToken z (extractName x:context) (p ++ [2])
 renderToken (Application x y) context p  = annotate (Location p) $ align (sep [x', y'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
@@ -128,17 +126,15 @@ renderToken (Conditional x y z) context p  = annotate (Location p) $ align (sep 
               y' = renderToken y context (p ++ [1])
               z' = renderToken z context (p ++ [2])
 renderToken Unknown context p = annotate (Location p) $ "_____"
-renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [renderToken x context (p ++ [0]), "->", renderToken y context (p ++ [1])])
+renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [x', "->", y'])
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
 renderToken BoolType context p = annotate (Location p) $ annotate Yellow "Bool"
 renderToken (Assignment x y z) context p  = annotate (Location p) $ x' <+> ":" <+> y' <> line <> x' <+> "=" <+> z'
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
-              z' = renderToken z (case x of 
-                                Name Nothing -> "?":context
-                                Name (Just n) -> n:context) (p ++ [2])
+              z' = renderToken z context (p ++ [2])
 -- renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line x)
 renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line (f context x 0))
-        where f context (t@(Assignment (Name n) _ _):ts) i = renderToken t context [i]:f ((case n of
-                                Just s -> s
-                                Nothing -> "?"):context) ts (i+1)
+        where f context (t@(Assignment n _ _):ts) i = renderToken t context [i]:f (extractName n:context) ts (i+1)
               f _ _ _ = []

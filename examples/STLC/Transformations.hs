@@ -56,14 +56,21 @@ findIdentifierDefinition _ _ _ = Nothing
 
 contextAtPoint :: Path -> Token -> Maybe [Token]
 contextAtPoint [] t = Just []
-contextAtPoint (1:ns) (Assignment _ t b) = fmap (t:) (contextAtPoint ns b)
-contextAtPoint (1:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
+contextAtPoint (n:ns) (Program a) = do child <- select n (Program a)
+                                       childContext <- contextAtPoint ns child
+                                       return (reverse (fmap extractContext (take n a)) ++ childContext)
+        where extractContext (Assignment _ t _) = t
+              extractContext t = error ("Non-assignment found at top level: " ++ show t)
+        -- for each child < p, add to context then procede
+-- need to consider context from previous assignments
+-- contextAtPoint (2:ns) (Assignment _ t b) = fmap (t:) (contextAtPoint ns b)
+contextAtPoint (2:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
 contextAtPoint (n:ns) t = do child <- select n t
                              contextAtPoint ns child
 
 functionCalls :: Path -> Token -> [Token]
-functionCalls p t = concat [ fmap (app x) [0..(n x)] | x <- context]
-        where app x 0 = x
+functionCalls p t = concat [ fmap (app i) [0..(n x)] | (x,i) <- zip context [0..]]
+        where app x 0 = Identifier x
               app x n = Application (app x (n-1)) Unknown
               n x = fromMaybe 0 (identifierArity p x t)
               context = fromMaybe [] (contextAtPoint p t)

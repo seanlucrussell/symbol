@@ -264,8 +264,8 @@ homeHandler ((Key 'r') ,_) = whenOverIdentifier (setName "") (return ())
 homeHandler ((Key 'p') ,n) = whenOverIdentifier (return ()) (do t <- gets tree
                                                                 p <- gets path
                                                                 selectTerm (possibleTerms t p) 0)
-homeHandler ((Key 'O') ,_) = applyTransformation (insertBefore (Assignment Unknown Unknown Unknown))
-homeHandler ((Key 'o') ,_) = applyTransformation (insertAfter (Assignment Unknown Unknown Unknown))
+homeHandler ((Key 'O') ,_) = applyTransformation (insertBefore (Assignment (Name Nothing) Unknown Unknown))
+homeHandler ((Key 'o') ,_) = applyTransformation (insertAfter (Assignment (Name Nothing) Unknown Unknown))
 homeHandler ((Key '?') ,_) = applyTransformation (replaceAtPoint' Unknown)
 homeHandler ((Key 't') ,_) = applyTransformation (replaceAtPoint' TrueTerm)
 homeHandler ((Key 'f') ,_) = applyTransformation (replaceAtPoint' FalseTerm)

@@ -179,18 +179,18 @@ getRendering :: Int -> State (App Token) Rendering
 getRendering n = do t <- gets tree
                     return (render n (t,[] :: [String]))
 
--- positionFromPath :: Rendering -> Path -> (Int, Int)
--- positionFromPath pathMap path = leastInList positions
---         where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
---               leastInList [] = error "Path not in Rendering. How did that happen?"
---               leastInList (l:[]) = l
---               leastInList (l:ls) = lowest l (leastInList ls)
---               positions = [position | (position,p) <- toList pathMap, path `elem` p ]
+positionFromPath :: Rendering -> Path -> (Int, Int)
+positionFromPath pathMap path = leastInList positions
+        where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
+              leastInList [] = error "Path not in Rendering. How did that happen?"
+              leastInList (l:[]) = l
+              leastInList (l:ls) = lowest l (leastInList ls)
+              positions = [position | (position,Cell {paths = p}) <- toList pathMap, path `elem` p ]
 
--- updatePosition :: Int -> State (App Token) ()
--- updatePosition n = do pathMap <- getRendering n
---                       path <- gets path
---                       applyToPosition (const (positionFromPath pathMap path))
+updatePosition :: Int -> State (App Token) ()
+updatePosition n = do pathMap <- getRendering n
+                      path <- gets path
+                      applyToPosition (const (positionFromPath pathMap path))
 
 exitPopup :: State (App Token) ()
 exitPopup = setPopup Nothing >> changeState homeHandler
@@ -246,15 +246,15 @@ homeHandler :: FoldMachine
 -- homeHandler (LeftArrow ,n) = applyMovement prevLeaf >> updatePosition n
 -- homeHandler (LeftArrow ,n) = applyToPosition selectLeft >> updatePath n
 -- homeHandler (RightArrow,n) = applyToPosition selectRight >> updatePath n
-homeHandler (Tab       ,n) = applyMovement nextLeaf
-homeHandler (BackTab   ,n) = applyMovement prevLeaf
-homeHandler ((Key 'j') ,n) = applyMovement selectFirst
-homeHandler ((Key 'l') ,n) = applyMovement selectNext
-homeHandler ((Key 'h') ,n) = applyMovement selectPrev
-homeHandler ((Key 'k') ,n) = applyMovement goUp
-homeHandler ((Key 's') ,_) = applyTransformation swapUp
-homeHandler ((Key 'S') ,_) = applyTransformation swapDown
-homeHandler ((Key 'x') ,_) = applyTransformation remove
+homeHandler (Tab       ,n) = applyMovement nextLeaf >> updatePosition n
+homeHandler (BackTab   ,n) = applyMovement prevLeaf >> updatePosition n
+homeHandler ((Key 'j') ,n) = applyMovement selectFirst >> updatePosition n
+homeHandler ((Key 'l') ,n) = applyMovement selectNext >> updatePosition n
+homeHandler ((Key 'h') ,n) = applyMovement selectPrev >> updatePosition n
+homeHandler ((Key 'k') ,n) = applyMovement goUp >> updatePosition n
+homeHandler ((Key 's') ,n) = applyTransformation swapUp >> updatePosition n
+homeHandler ((Key 'S') ,n) = applyTransformation swapDown >> updatePosition n
+homeHandler ((Key 'x') ,n) = applyTransformation remove >> updatePosition n
 homeHandler ((Key 'c') ,_) = commit
 homeHandler ((Key 'u') ,_) = revert
 homeHandler (Esc       ,_) = terminate

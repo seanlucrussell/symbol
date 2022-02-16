@@ -20,20 +20,6 @@ import Data.Maybe
 import Control.Monad
 import Control.Applicative
 
--- namedVariables :: Token -> [Token]
--- namedVariables = mapMaybe extractIdentifier . allIdentifierDefinitions
-
--- allIdentifierDefinitions :: Token -> [Token]
--- allIdentifierDefinitions tree = searchTree test tree
---         where test (Function _ _) = True
---               test (Assignment _ _) = True
---               test  _ = False
-
--- extractIdentifier :: Token -> Maybe Token
--- extractIdentifier (Function i _ _) = Just i
--- extractIdentifier (Assignment i _ _) = Just i
--- extractIdentifier _ = Nothing
-
 extractType :: Token -> Maybe Token
 extractType (Function _ t _) = Just t
 extractType (Assignment _ t _) = Just t
@@ -61,9 +47,6 @@ contextAtPoint (n:ns) (Program a) = do child <- select n (Program a)
                                        return (reverse (fmap extractContext (take n a)) ++ childContext)
         where extractContext (Assignment _ t _) = t
               extractContext t = error ("Non-assignment found at top level: " ++ show t)
-        -- for each child < p, add to context then procede
--- need to consider context from previous assignments
--- contextAtPoint (2:ns) (Assignment _ t b) = fmap (t:) (contextAtPoint ns b)
 contextAtPoint (2:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
 contextAtPoint (n:ns) t = do child <- select n t
                              contextAtPoint ns child
@@ -74,10 +57,6 @@ functionCalls p t = concat [ fmap (app i) [0..(n x)] | (x,i) <- zip context [0..
               app x n = Application (app x (n-1)) Unknown
               n x = fromMaybe 0 (identifierArity p x t)
               context = fromMaybe [] (contextAtPoint p t)
--- functionCalls t = concat [ fmap (app x) [0..(n x)] | x <- namedVariables t]
---         where app x 0 = x
---               app x n = Application (app x (n-1)) Unknown
---               n x = fromMaybe 0 (identifierArity x t)
 
 standardTerms :: [Token]
 standardTerms = [ TrueTerm

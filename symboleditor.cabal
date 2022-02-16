@@ -34,8 +34,8 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
 
-executable SymbolEditor
-  main-is:             STLC/Tui.hs
+executable STLC
+  main-is:             STLC/Main.hs
   ghc-options:         -threaded -Wincomplete-patterns
   default-extensions:  CPP
   other-modules:

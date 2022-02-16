@@ -52,16 +52,7 @@ renderContextAtPoint (p:ps) (Program a) = renderContextAtPoint ps (children (Pro
         where f (Assignment n _ _) = extractName n
               f _ = error "Non-assignment at top level"
 renderContextAtPoint (2:ps) (Function n _ t) = renderContextAtPoint ps t ++ [extractName n]
--- renderContextAtPoint (2:ps) (Assignment (Name i) _ t) = (case i of
-                -- Just n -> n
-                -- Nothing -> ""):renderContextAtPoint ps t
 renderContextAtPoint (p:ps) t = renderContextAtPoint ps (children t !! p)
-
-forward :: Int -> (Int,Int) -> (Int,Int)
-forward n (x,y) = (x+n,y)
-
-down :: Int -> (Int,Int) -> (Int,Int)
-down n (_,y) = (n,y+1)
 
 instance Renderer.Render (Token, [String]) where
   render width (token,context) = fromDoc width (renderToken token context [])
@@ -69,8 +60,12 @@ instance Renderer.Render (Token, [String]) where
 fromDoc :: Int -> Doc Annotation -> Renderer.Rendering
 fromDoc width doc = generatePathMap [] (0,0) (Renderer.layout width doc)
 
--- push/pop requires that we ignore annotations that aren't markings. currently
--- fixed in termToPathMap but more robust solution would be preferred
+forward :: Int -> (Int,Int) -> (Int,Int)
+forward n (x,y) = (x+n,y)
+
+down :: Int -> (Int,Int) -> (Int,Int)
+down n (_,y) = (n,y+1)
+
 generatePathMap :: [Annotation] -> (Int,Int) -> SimpleDocStream Annotation -> Renderer.Rendering
 generatePathMap _ _ SFail                      = M.empty
 generatePathMap _ _ SEmpty                     = M.empty
@@ -134,7 +129,6 @@ renderToken (Assignment x y z) context p  = annotate (Location p) $ x' <+> ":" <
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
               z' = renderToken z context (p ++ [2])
--- renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line x)
 renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line (f context x 0))
         where f context (t@(Assignment n _ _):ts) i = renderToken t context [i]:f (extractName n:context) ts (i+1)
               f _ _ _ = []

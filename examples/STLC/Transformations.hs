@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module STLC.Transformations 
   ( possibleTerms
+  , swapAssignmentUp
+  , swapAssignmentDown
   ) where
 
 import AST
@@ -19,6 +21,48 @@ import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
+
+contextDepth :: Path -> Token -> Maybe Int
+contextDepth p t = fmap length (contextAtPoint p t)
+
+-- reindex :: (Int -> Int) -> Token -> Token
+-- reindex f (Identifier i) = Identifier (f i)
+-- reindex f (Function a b c) = Function a b (reindex c)
+-- reindex f (Assignment a b c) = Assignment a b (reindex c)
+-- reindex f (Application a b) = Application (reindex a) (reindex b)
+-- reindex f (Conditional a b c) = Conditional (reindex a) (reindex b) (reindex c)
+-- reindex f (Program ts) = Program (fmap (reindex f) ts)
+-- reindex f t = t
+
+applyToFreeVars :: (Int -> Int) -> Token -> Token
+applyToFreeVars f t = app 0 t
+  where app depth (Identifier i) = if i >= depth then Identifier (f i) else Identifier i
+        app depth (Function a b c) = Function a b (app (depth + 1) c)
+        app depth (Assignment a b c) = Assignment a b (app (depth + 1) c)
+        app depth (Application a b) = Application (app depth a) (app depth b)
+        app depth (Conditional a b c) = Conditional (app depth a) (app depth b) (app depth c)
+        app depth (Program ts) = Program [app (depth + n) t | (n,t) <- zip [0..] ts]
+        app _ t = t
+
+swapAssignmentUp :: Transformation Token
+swapAssignmentUp t (p:ps) = do swapped <- swapAdjacent (p-1) (children t)
+                               newToken <- update t swapped
+                               top <- treeUnderCursor [p-1,2] newToken
+                               bottom <- treeUnderCursor [p,2] newToken
+                               newToken' <- replaceAtPoint (applyToFreeVars (subtract 1) top) [p-1,2] newToken
+                               newToken'' <- replaceAtPoint (applyToFreeVars (+1) bottom) [p,2] newToken'
+                               return (newToken'', p-1:ps)
+swapAssignmentUp _ _ = Nothing
+
+swapAssignmentDown :: Transformation Token
+swapAssignmentDown t (p:ps) = do swapped <- swapAdjacent p (children t)
+                                 newToken <- update t swapped
+                                 top <- treeUnderCursor [p,2] newToken
+                                 bottom <- treeUnderCursor [p+1,2] newToken
+                                 newToken' <- replaceAtPoint (applyToFreeVars (subtract 1) top) [p,2] newToken
+                                 newToken'' <- replaceAtPoint (applyToFreeVars (+1) bottom) [p+1,2] newToken'
+                                 return (newToken'', p+1:ps)
+swapAssignmentDown _ _ = Nothing
 
 extractType :: Token -> Maybe Token
 extractType (Function _ t _) = Just t

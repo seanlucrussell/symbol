@@ -28,8 +28,8 @@ tokenToTree (Conditional a b c) = Tree "If" (fmap tokenToTree [a,b,c])
 tokenToTree Unknown      = Tree "Unknown" []
 tokenToTree (FunctionType a b) = Tree "FnT" (fmap tokenToTree [a,b])
 tokenToTree BoolType     = Tree "BoolT" []
-tokenToTree (Assignment a b c) = Tree "Assign" (fmap tokenToTree [a,b,c])
-tokenToTree (Program         ts ) = Tree "Prog" (fmap tokenToTree ts)
+tokenToTree (Assignment a b c d) = Tree "Assign" (fmap tokenToTree [a,b,c,d])
+tokenToTree EndOfProgram     = Tree "EOP" []
 
 treeToToken :: Tree String -> Maybe Token
 treeToToken (Tree ('I':'d':':':n) []) = readMaybe n >>= (Just . Identifier)
@@ -43,13 +43,12 @@ treeToToken (Tree "If"            ts) = do [a,b,c] <- mapM treeToToken ts
                                            return (Conditional a b c)
 treeToToken (Tree "FnT"           ts) = do [a,b] <- mapM treeToToken ts
                                            return (FunctionType a b)
-treeToToken (Tree "Assign"        ts) = do [a,b,c] <- mapM treeToToken ts
-                                           return (Assignment a b c)
-treeToToken (Tree "Prog"          ts) = do ts' <- mapM treeToToken ts
-                                           return (Program ts')
+treeToToken (Tree "Assign"        ts) = do [a,b,c,d] <- mapM treeToToken ts
+                                           return (Assignment a b c d)
 treeToToken (Tree "BoolT"         []) = Just BoolType     
 treeToToken (Tree "T"             []) = Just TrueTerm         
 treeToToken (Tree "F"             []) = Just FalseTerm        
+treeToToken (Tree "EOP"             []) = Just EndOfProgram
 treeToToken (Tree "Unknown"       []) = Just Unknown      
 treeToToken _                         = Nothing
 
@@ -99,18 +98,11 @@ treeToPath (Tree "Path" subtrees) = mapM treeToInt subtrees
               treeToInt _ = Nothing
 treeToPath _ = Nothing
 
--- need to make sure program is valid
-treeToProgram :: Tree String -> Maybe Token
-treeToProgram = treeToToken
--- treeToProgram (Tree string subtrees) = do token <- treeToToken string
---                                           subPrograms <- mapM treeToProgram subtrees
---                                           return (Tree token subPrograms)
-
 -- path should point to a valid location in the program
 deserialize :: String -> Maybe S
 deserialize s = do tree <- deserializeTree s
                    case tree of
-                        Tree "Data" [b,c] -> do program <- treeToProgram b
+                        Tree "Data" [b,c] -> do program <- treeToToken b
                                                 path <- treeToPath c
                                                 return (program, path)
                         _ -> Nothing

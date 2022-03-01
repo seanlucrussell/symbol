@@ -57,10 +57,13 @@ selectFirst'' :: Path -> Path
 selectFirst'' p =  p ++ [0]
 
 selectPrev'' :: Path -> Path
+selectPrev'' [] = []
 selectPrev'' p = init p ++ [last p - 1]
 
 selectNext'' :: Path -> Path
+selectNext'' [] = []
 selectNext'' p = init p ++ [last p + 1]
 
 goUp'' :: Path -> Path
-goUp'' = init
+goUp'' (p:ps) = ps
+goUp'' [] = []

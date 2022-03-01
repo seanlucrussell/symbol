@@ -254,7 +254,9 @@ homeHandler ((Key 'h') ,n) = applyMovement selectPrev >> updatePosition n
 homeHandler ((Key 'k') ,n) = applyMovement goUp >> updatePosition n
 homeHandler ((Key 's') ,n) = applyTransformation swapAssignmentUp >> updatePosition n
 homeHandler ((Key 'S') ,n) = applyTransformation swapAssignmentDown >> updatePosition n
-homeHandler ((Key 'x') ,n) = applyTransformation remove >> updatePosition n
+homeHandler ((Key 'x') ,n) = applyTransformation removeAssignment >> updatePosition n
+homeHandler ((Key 'O') ,_) = applyTransformation insertAssignmentBefore
+homeHandler ((Key 'o') ,_) = applyTransformation insertAssignmentAfter
 homeHandler ((Key 'c') ,_) = commit
 homeHandler ((Key 'u') ,_) = revert
 homeHandler (Esc       ,_) = terminate
@@ -264,8 +266,6 @@ homeHandler ((Key 'r') ,_) = whenOverIdentifier (setName "") (return ())
 homeHandler ((Key 'p') ,n) = whenOverIdentifier (return ()) (do t <- gets tree
                                                                 p <- gets path
                                                                 selectTerm (possibleTerms t p) 0)
-homeHandler ((Key 'O') ,_) = applyTransformation (insertBefore (Assignment (Name Nothing) Unknown Unknown))
-homeHandler ((Key 'o') ,_) = applyTransformation (insertAfter (Assignment (Name Nothing) Unknown Unknown))
 homeHandler ((Key '?') ,_) = applyTransformation (replaceAtPoint' Unknown)
 homeHandler ((Key 't') ,_) = applyTransformation (replaceAtPoint' TrueTerm)
 homeHandler ((Key 'f') ,_) = applyTransformation (replaceAtPoint' FalseTerm)

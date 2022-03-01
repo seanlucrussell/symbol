@@ -22,8 +22,7 @@ class Tree a where
 type Path = [Int]
 
 validatePath :: Tree a => a -> Path -> Bool
-validatePath t [] = False
-validatePath t [n] = isJust (select n t)
+validatePath t [] = True
 validatePath t (n:ns) = case (do t' <- select n t
                                  return (validatePath t' ns)) of
                              Just True -> True

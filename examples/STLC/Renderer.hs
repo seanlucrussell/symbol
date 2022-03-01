@@ -48,9 +48,6 @@ import Data.Text
 
 renderContextAtPoint :: Path -> Token -> [String]
 renderContextAtPoint [] _ = []
-renderContextAtPoint (p:ps) (Program a) = renderContextAtPoint ps (children (Program a) !! p) ++ Prelude.reverse (fmap f (Prelude.take p a))
-        where f (Assignment n _ _) = extractName n
-              f _ = error "Non-assignment at top level"
 renderContextAtPoint (2:ps) (Function n _ t) = renderContextAtPoint ps t ++ [extractName n]
 renderContextAtPoint (p:ps) t = renderContextAtPoint ps (children t !! p)
 
@@ -125,10 +122,9 @@ renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
 renderToken BoolType context p = annotate (Location p) $ annotate Yellow "Bool"
-renderToken (Assignment x y z) context p  = annotate (Location p) $ x' <+> ":" <+> y' <> line <> x' <+> "=" <+> z'
+renderToken EndOfProgram _ _  = ""
+renderToken (Assignment x y z w) context p  = annotate (Location p) $ x' <+> ":" <+> y' <> line <> x' <+> "=" <+> z' <> line <> line <> w'
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
               z' = renderToken z context (p ++ [2])
-renderToken (Program x) context p = annotate (Location p) $ vsep (punctuate line (f context x 0))
-        where f context (t@(Assignment n _ _):ts) i = renderToken t context [i]:f (extractName n:context) ts (i+1)
-              f _ _ _ = []
+              w' = renderToken w (extractName x:context) (p ++ [3])

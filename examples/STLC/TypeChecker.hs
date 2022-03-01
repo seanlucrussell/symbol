@@ -20,9 +20,7 @@ data Trm = Ref Int
          | Cond Trm Trm Trm
          | UnknownTrm
           deriving (Eq,Show)
-data Assign = Assign Type Trm
-          deriving (Eq,Show)
-data Prog = Prog [Assign]
+data Assign = Assign Type Trm Assign | EOP
           deriving (Eq,Show)
 
 chooseMoreSpecificType :: Type -> Type -> Type
@@ -65,25 +63,17 @@ valTrm c (Function (Name _) y z) = do y' <- valType c y
 valTrm _ _ = Nothing
 
 valAssign :: Context -> Token -> Maybe Assign
-valAssign c (Assignment (Name _) y z) = do y' <- valType c y
-                                           z' <- valTrm c z
-                                           zt <- typeOf c z
-                                           guard (typeEquality y' zt)
-                                           return (Assign y' z')
+valAssign _ EndOfProgram = Just EOP
+valAssign c (Assignment (Name _) y z w) = do y' <- valType c y
+                                             z' <- valTrm c z
+                                             zt <- typeOf c z
+                                             next <- valAssign (updateContext y' c) w
+                                             guard (typeEquality y' zt)
+                                             return (Assign y' z' next)
 valAssign _ _ = Nothing
 
-valAssigns :: Context -> [Token] -> Maybe [Assign]
-valAssigns _ [] = Just []
-valAssigns c (a:as) = do a'@(Assign t b) <- valAssign c a
-                         as' <- valAssigns (updateContext t c) as
-                         return (a':as')
-                         
-valProg :: Context -> Token -> Maybe Prog
-valProg c (Program as) = fmap Prog (valAssigns c as)
-valProg _ _ = Nothing
-
 validateProgram :: Token -> Bool
-validateProgram = maybeToBool . valProg emptyContext
+validateProgram = maybeToBool . valAssign emptyContext
 
 typeEquality :: Type -> Type -> Bool
 typeEquality UnknownT _ = True

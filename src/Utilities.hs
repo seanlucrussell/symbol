@@ -50,15 +50,17 @@ changeAtIndex n = applyAtIndex n . const
 applyAtIndex :: Int -> (a -> a) -> [a] -> [a]
 applyAtIndex 0 f (y:ys) = f y:ys
 applyAtIndex n f (y:ys) = y:(applyAtIndex (n-1) f ys)
+applyAtIndex _ _ _ = undefined
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt 0 x ys = x:ys
 insertAt n x (y:ys) = y:insertAt (n-1) x ys
+insertAt _ _ _ = undefined
 
 safeListIndex :: Int -> [a] -> Maybe a
-safeListIndex 0 (x:xs) = Just x
-safeListIndex n [] = Nothing
-safeListIndex n (x:xs) = if n < 0 then Nothing else safeListIndex (n-1) xs
+safeListIndex 0 (x:_) = Just x
+safeListIndex _ [] = Nothing
+safeListIndex n (_:xs) = if n < 0 then Nothing else safeListIndex (n-1) xs
 
 
 swapAdjacent :: Int -> [a] -> Maybe [a]

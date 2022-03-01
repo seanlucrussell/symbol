@@ -7,8 +7,6 @@ module STLC.Serialize
 import STLC.Data
 import AST hiding (Tree)
 
-import qualified Data.Map
-import qualified Data.Text
 import Text.Read
 import Text.ParserCombinators.Parsec
 
@@ -79,13 +77,13 @@ whitespace = many $ oneOf " \n\t"
 -- need to do strings too
 
 treeParser :: Parser (Tree String)
-treeParser = do char '('
-                whitespace
-                token <- many1 (letter <|> digit <|> char ':')
-                whitespace
+treeParser = do _ <- char '('
+                _ <- whitespace
+                treeToken <- many1 (letter <|> digit <|> char ':')
+                _ <- whitespace
                 subTrees <- treeParser `sepBy` whitespace
-                char ')'
-                return (Tree token subTrees)
+                _ <- char ')'
+                return (Tree treeToken subTrees)
 
 deserializeTree :: String -> Maybe (Tree String)
 deserializeTree s = case parse treeParser "tree" s of

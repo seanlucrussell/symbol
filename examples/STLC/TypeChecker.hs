@@ -3,7 +3,6 @@ module STLC.TypeChecker
   ( validateProgram ) where
 
 import STLC.Data
-import AST
 import Utilities
 
 import Control.Monad
@@ -23,10 +22,6 @@ data Trm = Ref Int
 data Assign = Assign Type Trm Assign | EOP
           deriving (Eq,Show)
 
-chooseMoreSpecificType :: Type -> Type -> Type
-chooseMoreSpecificType UnknownT t = t
-chooseMoreSpecificType t        _ = t
-
 valType :: Context -> Token -> Maybe Type
 valType _ BoolType = Just BoolT
 valType _ Unknown = Just UnknownT
@@ -37,15 +32,15 @@ valType _ _ = Nothing
 
 valTrm :: Context -> Token -> Maybe Trm
 valTrm c (Identifier t) = safeListIndex t c >> return (Ref t)
-valTrm c (Unknown) = Just UnknownTrm
-valTrm c (TrueTerm) = Just T
-valTrm c (FalseTerm) = Just F
+valTrm _ (Unknown) = Just UnknownTrm
+valTrm _ (TrueTerm) = Just T
+valTrm _ (FalseTerm) = Just F
 valTrm c (Application x y) = do x' <- valTrm c x
                                 y' <- valTrm c y
                                 xt <- typeOf c x
                                 yt <- typeOf c y
                                 case xt of
-                                     FunctionT a b -> if typeEquality a yt then return (App x' y') else Nothing
+                                     FunctionT a _ -> if typeEquality a yt then return (App x' y') else Nothing
                                      UnknownT -> return (App x' y')
                                      _ -> Nothing
 valTrm c (Conditional x y z) = do x' <- valTrm c x

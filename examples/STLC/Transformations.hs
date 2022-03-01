@@ -9,35 +9,27 @@ module STLC.Transformations
   ) where
 
 import AST
-import Movements
 import Utilities
 import Transformations
 
 import STLC.TypeChecker
 import STLC.Data
-import STLC.Movements
 
-import qualified Data.Text as T
-import qualified Data.Map as M
-
-import Data.List
 import Data.Maybe
-import Control.Monad
-import Control.Applicative
 
-contextDepth :: Path -> Token -> Maybe Int
-contextDepth p t = fmap length (contextAtPoint p t)
-
-evalStep :: Transformation Token -- remember, we need to take into account changes to path
-evalStep = undefined
-
-evalUnderCursor :: Transformation Token
-evalUnderCursor = undefined
+-- contextDepth :: Path -> Token -> Maybe Int
+-- contextDepth p t = fmap length (contextAtPoint p t)
+-- 
+-- evalStep :: Transformation Token -- remember, we need to take into account changes to path
+-- evalStep = undefined
+-- 
+-- evalUnderCursor :: Transformation Token
+-- evalUnderCursor = undefined
 
 removeAssignment :: Transformation Token
 removeAssignment (Assignment a b c d) (3:ps) = do (d',ps') <- removeAssignment d ps
-                                                  return (Assignment a b c d', 3:ps)
-removeAssignment (Assignment _ _ _ d) ps = return (applyToFreeVars (subtract 1) d, [0])
+                                                  return (Assignment a b c d', 3:ps')
+removeAssignment (Assignment _ _ _ d) _ = return (applyToFreeVars (subtract 1) d, [0])
 removeAssignment _ _ = Nothing
 
 insertAssignmentBefore :: Transformation Token
@@ -64,7 +56,7 @@ applyToFreeVars f t = app 0 t
         app depth (Assignment a b c d) = Assignment a b (app depth c) (app (depth + 1) d)
         app depth (Application a b) = Application (app depth a) (app depth b)
         app depth (Conditional a b c) = Conditional (app depth a) (app depth b) (app depth c)
-        app _ t = t
+        app _ x = x
 -- i'd really like to write this as
 --   applyToFreeVars f (Identifier env i) = if i >= length env then Identifier env (f i) else Identifier i
 --   applyToFreeVars f t = fmap applyToFreeVars f t
@@ -84,19 +76,10 @@ applyToFreeVars f t = app 0 t
 -- this function compiles existing data in the structure. er not quite. this
 -- isn't the answer either.
 --
--- ok so something like
---
-
--- m f extendEnv env t = go t
---      where h = m f extendEnv env
---            go (Application a b) = f env (Application (go a) (go b))
---            go (Function a b c) = f env (Function (go a) (go b) (m f extendEnv (extendEnv a env) c))
---            go (Assignment a b c) = f env (Assignment (go a) (go b) (go c))
---            go (Conditional a b c) = f env (Conditional (go a) (go b) (go c))
---            go (FunctionType a b) = f env (FunctionType (go a) (go b))
---            go t = f env t
--- map f extendEnv env (Application a b) = f env (Application (map f extendEnv env a) (map f extendEnv env b))
--- map f extendEnv env (Function a b) = f env (Function (map f extendEnv env a) (map f extendEnv env b))
+-- what are our use cases?
+--   - increment/decrement free variables
+--   - get type annotations for identifiers
+--   - info about names for the renderer
 
 swapAssignmentUp :: Transformation Token
 swapAssignmentUp t (p:ps) = do swapped <- swapAdjacent (p-1) (children t)
@@ -132,14 +115,14 @@ typeToArity _ = Nothing
 -- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
 -- (which may be 0, for identifiers which refer to non-function values)
 identifierArity :: Path -> Token -> Token -> Maybe Integer
-identifierArity path id tree = findIdentifierDefinition path id tree >>= extractType >>= typeToArity
+identifierArity path identifier tree = findIdentifierDefinition path identifier tree >>= extractType >>= typeToArity
 
 findIdentifierDefinition :: Path -> Token -> Token -> Maybe Token
 findIdentifierDefinition path (Identifier n) tree = contextAtPoint path tree >>= safeListIndex n
 findIdentifierDefinition _ _ _ = Nothing
 
 contextAtPoint :: Path -> Token -> Maybe [Token]
-contextAtPoint [] t = Just []
+contextAtPoint [] _ = Just []
 contextAtPoint (3:ns) (Assignment _ t _ c) = fmap (t:) (contextAtPoint ns c)
 contextAtPoint (2:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
 contextAtPoint (n:ns) t = do child <- select n t
@@ -148,7 +131,7 @@ contextAtPoint (n:ns) t = do child <- select n t
 functionCalls :: Path -> Token -> [Token]
 functionCalls p t = concat [ fmap (app i) [0..(n x)] | (x,i) <- zip context [0..]]
         where app x 0 = Identifier x
-              app x n = Application (app x (n-1)) Unknown
+              app x m = Application (app x (m-1)) Unknown
               n x = fromMaybe 0 (identifierArity p x t)
               context = fromMaybe [] (contextAtPoint p t)
 

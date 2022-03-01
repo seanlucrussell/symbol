@@ -3,24 +3,16 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module Main where
 
-import AST
 import STLC.Data
-import STLC.Renderer
-import Movements
-import Renderer
-import STLC.Transformations
 import STLC.Application
 import STLC.BrickRenderer
 import STLC.Serialize
 
-import Data.Text
 import Graphics.Vty
 import Brick
-import Text.Read
 
 import System.Environment
 import qualified Brick.AttrMap as A
-import Brick.Types (Widget)
 import qualified Brick.Main
 import qualified Brick.Widgets.List as L
 import qualified Control.Monad.State as S
@@ -31,6 +23,7 @@ import qualified Control.Monad.State as S
 -- (which would have to be renderer dependent) that produces a map mapping xy
 -- coordinates on the screen to the path to the term at those coordinates
 
+extractInput :: Key -> ApplicationInput
 extractInput (KChar '\t') = Tab
 extractInput KBackTab     = BackTab
 extractInput (KChar c) = Key c
@@ -44,7 +37,7 @@ extractInput KEsc     = Esc
 extractInput _             = Other
 
 serializeToFile :: String -> STLC.Application.App Token -> IO ()
-serializeToFile f (STLC.Application.App program path _ _ _ _) = writeFile f (serialize (program, path))
+serializeToFile f a = writeFile f (serialize (tree a, path a))
 
 appEvent :: String -> STLC.Application.App Token -> BrickEvent n e -> EventM Name (Next (STLC.Application.App Token))
 appEvent file d (VtyEvent (EvKey e [] )) =
@@ -52,23 +45,23 @@ appEvent file d (VtyEvent (EvKey e [] )) =
                 case mExtent of
                   Nothing -> error "Couldn't find main window display widget!"
                   Just (Extent _ _ (width, _) _) ->
-                        let next = S.execState (stateHandler (extractInput e,width)) d in
-                        case next of 
-                                (STLC.Application.App _ _ _ _ Nothing _) -> halt d
+                        let nextState = S.execState (stateHandler (extractInput e,width)) d in
+                        case next nextState of 
+                                Nothing -> halt d
                                 -- next line causes application to save every
                                 -- frame. shouldn't do this (what happens if we
                                 -- are in the middle of some operation? should
                                 -- really only save checkpoints, if even that.
                                 -- auto save is powerful, but hazardous)
-                                _ -> S.liftIO (serializeToFile file next) >> continue next
+                                _ -> S.liftIO (serializeToFile file nextState) >> continue nextState
 appEvent _ d _ = continue d
 
 customAttr :: A.AttrName
 customAttr = L.listSelectedAttr <> "custom"
 
 stateDataFromString :: String -> Maybe (STLC.Application.App Token)
-stateDataFromString s = do (program, path) <- deserialize s
-                           let state = STLC.Application.App program path (0,0) Nothing (Just homeHandler) state in
+stateDataFromString s = do (program, p) <- deserialize s
+                           let state = STLC.Application.App program p (0,0) Nothing (Just homeHandler) state in
                                return state
 
 -- use this when file doesn't exist already

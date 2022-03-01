@@ -8,29 +8,22 @@ module STLC.BrickRenderer
   ) where
 
 import AST
-import Utilities
 import Renderer
 import STLC.Application
 import STLC.Data
 import STLC.Renderer
 
 import Brick.Types (Widget)
-import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit, padLeft, padTop)
+import Brick.Widgets.Core (vBox, str, modifyDefAttr, hLimit, str, vBox, vLimit)
 import Data.Map
 import Data.Maybe
 import Data.List
-import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
 import Graphics.Vty
 import qualified Brick
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import qualified Brick.Widgets.List as L
-import qualified Data.Text as T
 import qualified Data.Vector as Vec
-
-import Lens.Micro
-import Control.Monad
 
 xMin :: Map (Int,Int) t -> Int
 xMin m = minimum (fmap fst (keys m))
@@ -48,7 +41,7 @@ renderAsWidget :: Render a => a -> Widget Name
 renderAsWidget = renderingToWidget . render 100
 
 renderForPopup :: Render a => a -> Widget Name
-renderForPopup x = renderingToWidget (Data.Map.map (\x -> x {style = Highlight}) (render 100 x))
+renderForPopup x = renderingToWidget (Data.Map.map (\n -> n {style = Highlight}) (render 100 x))
 
 renderWithPathHighlighted :: Render a => Path -> Int -> a -> Widget Name
 renderWithPathHighlighted p n = renderingToWidget . highlightAtPath p . render n
@@ -88,7 +81,7 @@ instance Ord Name where
   _ <= _ = True
 
 drawUI :: App Token -> [Widget Name]
-drawUI a@(App t p' x p u _) = (case popupData a of
+drawUI a = (case popupData a of
      Just (l, n) -> [popup (renderContextAtPoint (path a) (tree a)) (position a) (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
      _ -> []) ++ [drawMainWindow (path a) (tree a,[] :: [String])]
 
@@ -98,7 +91,6 @@ drawMainWindow p = Brick.reportExtent MainWindowName . renderWithPathHighlighted
 popup :: [String] -> (Int, Int) -> L.List Name Token -> Widget Name
 popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
     where
-        total = show (Vec.length (l^.(L.listElementsL)))
         listDrawElement :: Bool -> Token -> Widget Name
         listDrawElement selected a = C.hCenter $ hLimit 35 $ vLimit 1 $
                                 if selected 

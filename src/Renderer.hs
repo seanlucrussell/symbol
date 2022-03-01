@@ -11,7 +11,6 @@ module Renderer
   ) where
 
 import AST
-import Utilities
 
 import Data.Text.Prettyprint.Doc
 import qualified Data.Text as T

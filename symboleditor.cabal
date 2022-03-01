@@ -23,6 +23,7 @@ library
         Utilities
         Transformations
   default-extensions:  CPP
+  ghc-options:         -Wall
   build-depends:       base >=4.12 && <4.13,
                        text,
                        vector,
@@ -36,7 +37,7 @@ library
 
 executable STLC
   main-is:             STLC/Main.hs
-  ghc-options:         -threaded -Wincomplete-patterns
+  ghc-options:         -threaded -Wall
   default-extensions:  CPP
   other-modules:
         STLC.Application

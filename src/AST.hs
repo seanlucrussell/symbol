@@ -12,8 +12,6 @@ module AST
   , validatePath
   ) where
 import Utilities
-import qualified Data.Text as T
-import Data.Maybe
 import Control.Monad
 
 class Tree a where
@@ -22,18 +20,18 @@ class Tree a where
 type Path = [Int]
 
 validatePath :: Tree a => a -> Path -> Bool
-validatePath t [] = True
+validatePath _ [] = True
 validatePath t (n:ns) = case (do t' <- select n t
                                  return (validatePath t' ns)) of
                              Just True -> True
                              _ -> False
 
 replaceAtIndex :: Tree a => a -> Int -> a -> Maybe a
-replaceAtIndex t n t' = replaceAtIndex n (children t') >>= update t'
-        where replaceAtIndex 0 (_:xs) = Just (t:xs)
-              replaceAtIndex n [] = Nothing
-              replaceAtIndex n (x:xs) = do xs' <- replaceAtIndex (n-1) xs
-                                           return (x:xs')
+replaceAtIndex t n t' = go n (children t') >>= update t'
+        where go 0 (_:xs) = Just (t:xs)
+              go _ [] = Nothing
+              go m (x:xs) = do xs' <- go (m-1) xs
+                               return (x:xs')
 
 replaceAtPoint :: Tree a => a -> Path -> a -> Maybe a
 replaceAtPoint t []     _  = Just t
@@ -48,10 +46,6 @@ isLeaf t = case children t of
 
 select :: Tree a => Int -> a -> Maybe a
 select n = safeListIndex n . children
--- select n t = findChild n (children t)
---         where findChild 0 (t:ts) = Just t
---               findChild n (t:ts) = findChild (n-1) ts
---               findChild _ _ = Nothing
 
 searchTree :: Tree a => (a -> Bool) -> a -> [a]
 searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (children t))
@@ -59,10 +53,6 @@ searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (childre
 search :: Tree a => (a -> Bool) -> a -> [Path]
 search test tree = if test tree then [[]] else []
                    ++ join [fmap (n:) p | (n,p) <- zip [0..] (fmap (search test) (children tree))]
-
-testAtPoint :: Tree a => (a -> Bool) -> a -> Path -> Maybe Bool
-testAtPoint test tree path = do subtree <- treeUnderCursor path tree
-                                return (test subtree)
 
 treeUnderCursor :: Tree a => Path -> a -> Maybe a
 treeUnderCursor [] t     = Just t

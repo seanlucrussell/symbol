@@ -12,12 +12,7 @@ module Movements
 import AST
 import Utilities
 
-import qualified Data.Text as T
-
-import Data.List
 import Data.Maybe
-import Control.Applicative
-import Control.Monad
 
 type Movement a = a -> Path -> Maybe Path
 
@@ -65,5 +60,5 @@ selectNext'' [] = []
 selectNext'' p = init p ++ [last p + 1]
 
 goUp'' :: Path -> Path
-goUp'' (p:ps) = ps
+goUp'' (_:ps) = ps
 goUp'' [] = []

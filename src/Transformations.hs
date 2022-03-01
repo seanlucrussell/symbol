@@ -5,8 +5,6 @@ module Transformations
   ) where
 
 import AST
-import Movements
-import Utilities
 
 type Transformation a = a -> Path -> Maybe (a, Path)
 

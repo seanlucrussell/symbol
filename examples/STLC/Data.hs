@@ -4,15 +4,6 @@ module STLC.Data
   ) where
 
 import AST
-import Movements
-import Utilities
-
-import Control.Monad
-import Data.Map
-import Data.Maybe
-import qualified Data.Text as T
-
-{-# LANGUAGE XOverloadedStrings #-}
 
 data Token = Identifier Int
            | Name (Maybe String)

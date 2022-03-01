@@ -10,7 +10,6 @@ import qualified Renderer
 
 import qualified Data.Map as M
 import Data.Text.Prettyprint.Doc
-import Data.Text.Prettyprint.Doc.Render.Util.SimpleDocTree
 import Data.Text
 
 -- concept
@@ -52,10 +51,10 @@ renderContextAtPoint (2:ps) (Function n _ t) = renderContextAtPoint ps t ++ [ext
 renderContextAtPoint (p:ps) t = renderContextAtPoint ps (children t !! p)
 
 instance Renderer.Render (Token, [String]) where
-  render width (token,context) = fromDoc width (renderToken token context [])
+  render docWidth (token,context) = fromDoc docWidth (renderToken token context [])
 
 fromDoc :: Int -> Doc Annotation -> Renderer.Rendering
-fromDoc width doc = generatePathMap [] (0,0) (Renderer.layout width doc)
+fromDoc docWidth doc = generatePathMap [] (0,0) (Renderer.layout docWidth doc)
 
 forward :: Int -> (Int,Int) -> (Int,Int)
 forward n (x,y) = (x+n,y)
@@ -71,7 +70,7 @@ generatePathMap p x (SText n t s)              = M.union (M.fromList [((forward 
                                                            (generatePathMap p (forward n x) s)
 generatePathMap p x (SLine n s)                = generatePathMap p (down n x) s
 generatePathMap p x (SAnnPush p' s)            = generatePathMap (p':p) x s
-generatePathMap (p:ps) x (SAnnPop s)           = generatePathMap ps x s
+generatePathMap (_:ps) x (SAnnPop s)           = generatePathMap ps x s
 generatePathMap [] x    n                          = error ("unmatched pattern in generatePathMap: "
                                                              ++ "empty path, " ++ show x ++ show n)
 
@@ -82,14 +81,14 @@ paths []              = []
 
 style :: [Annotation] -> Renderer.Style
 style (Location _:as) = style as
-style (Highlight:as) = Renderer.Highlight
-style (Yellow:as) = Renderer.Yellow
-style (White:as) = Renderer.White
-style (Green:as) = Renderer.Green
-style (Blue:as) = Renderer.Blue
-style (Magenta:as) = Renderer.Magenta
-style (Cyan:as) = Renderer.Cyan
-style (Red:as) = Renderer.Red
+style (Highlight:_) = Renderer.Highlight
+style (Yellow:_) = Renderer.Yellow
+style (White:_) = Renderer.White
+style (Green:_) = Renderer.Green
+style (Blue:_) = Renderer.Blue
+style (Magenta:_) = Renderer.Magenta
+style (Cyan:_) = Renderer.Cyan
+style (Red:_) = Renderer.Red
 style [] = Renderer.Default
 
 data Annotation = Highlight | Yellow | White | Green | Blue | Magenta | Cyan | Red | Location Path deriving (Show)
@@ -101,9 +100,9 @@ extractName t = error "trying to extract name from token " ++ show t
 
 renderToken :: Token -> [String] -> Path -> Doc Annotation
 renderToken (Identifier i) context p = annotate (Location p) $ annotate Cyan (pretty (context!!i))
-renderToken (Name (Just "")) context p = annotate (Location p) $ " "
-renderToken (Name (Just n)) context p = annotate (Location p) $ annotate Cyan (pretty n)
-renderToken (Name Nothing) context p = annotate (Location p) $ annotate Cyan ("_____")
+renderToken (Name (Just "")) _ p = annotate (Location p) $ " "
+renderToken (Name (Just n)) _ p = annotate (Location p) $ annotate Cyan (pretty n)
+renderToken (Name Nothing) _ p = annotate (Location p) $ annotate Cyan ("_____")
 renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> x' <> ":" <> y' <> ".", z' ]))
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
@@ -111,17 +110,17 @@ renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Pret
 renderToken (Application x y) context p  = annotate (Location p) $ align (sep [x', y'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
-renderToken TrueTerm context p = annotate (Location p) $ annotate Red "True"
-renderToken FalseTerm context p = annotate (Location p) $ annotate Red "False"
+renderToken TrueTerm _ p = annotate (Location p) $ annotate Red "True"
+renderToken FalseTerm _ p = annotate (Location p) $ annotate Red "False"
 renderToken (Conditional x y z) context p  = annotate (Location p) $ align (sep ["if", x', "then", y', "else", z'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
               z' = renderToken z context (p ++ [2])
-renderToken Unknown context p = annotate (Location p) $ "_____"
+renderToken Unknown _ p = annotate (Location p) $ "_____"
 renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [x', "->", y'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
-renderToken BoolType context p = annotate (Location p) $ annotate Yellow "Bool"
+renderToken BoolType _ p = annotate (Location p) $ annotate Yellow "Bool"
 renderToken EndOfProgram _ _  = ""
 renderToken (Assignment x y z w) context p  = annotate (Location p) $ x' <+> ":" <+> y' <> line <> x' <+> "=" <+> z' <> line <> line <> w'
         where x' = renderToken x context (p ++ [0])

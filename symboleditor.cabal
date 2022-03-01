@@ -42,7 +42,6 @@ executable STLC
   other-modules:
         STLC.Application
         STLC.Data
-        STLC.Movements
         STLC.Renderer
         STLC.BrickRenderer
         STLC.Serialize

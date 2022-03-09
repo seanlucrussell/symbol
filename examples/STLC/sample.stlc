@@ -1,8 +1,27 @@
 (Data
  (Assign
-  (EmptyName)
-  (Unknown)
-  (Unknown)
-  (EOP))
+  (Name:asdf)
+  (BoolT)
+  (F)
+  (Assign
+   (Name:fff)
+   (FnT
+    (Unknown)
+    (Unknown))
+   (Unknown)
+   (Assign
+    (EmptyName)
+    (Unknown)
+    (Unknown)
+    (Assign
+     (EmptyName)
+     (Unknown)
+     (Unknown)
+     (Assign
+      (EmptyName)
+      (Unknown)
+      (Unknown)
+      (EOP))))))
  (Path
+  (3)
   (0)))

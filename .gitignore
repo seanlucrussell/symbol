@@ -2,4 +2,4 @@
 *.o
 Tui
 *.swp
-dist
+dist*

@@ -1,6 +1,5 @@
 module Utilities
-        ( (.-)
-        , (<!>)
+        ( (<!>)
         , applyAtIndex
         , changeAtIndex
         , swapAdjacent
@@ -19,15 +18,12 @@ module Utilities
 import qualified Data.Set
 import Data.Maybe
 import Control.Applicative
-
--- concatenate operations with this operator
-(.-) :: a -> (a -> b) -> b
-(.-) x f = f x
+import Control.Monad
 
 -- try to apply a function that might fail, fall back to current value if it
 -- does
 try :: (a -> Maybe a) -> a -> a
-try f x = fromMaybe x (f x)
+try = ap fromMaybe
 
 -- keep applying a function until the function fails
 untilFailure :: (a -> Maybe a) -> a -> Maybe a
@@ -83,5 +79,5 @@ firstNumberNotInList l = f 0
 -- stolen from https://hackage.haskell.org/package/tomland-1.3.3.0/docs/src/Toml.Codec.Types.          html#%3C%21%3E
 infixl 3 <!>
 (<!>) :: Alternative f => (a -> f x) -> (a -> f x) -> (a -> f x)
-f <!> g = \a -> f a <|> g a
+(<!>) = liftM2 (<|>)
 {-# INLINE (<!>) #-}

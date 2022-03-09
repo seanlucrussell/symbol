@@ -44,24 +44,17 @@ appEvent file d (VtyEvent (EvKey e [] )) =
              do mExtent <- Brick.Main.lookupExtent MainWindowName
                 case mExtent of
                   Nothing -> error "Couldn't find main window display widget!"
-                  Just (Extent _ _ (width, _) _) ->
-                        let nextState = S.execState (stateHandler (extractInput e,width)) d in
-                        case next nextState of 
-                                Nothing -> halt d
-                                -- next line causes application to save every
-                                -- frame. shouldn't do this (what happens if we
-                                -- are in the middle of some operation? should
-                                -- really only save checkpoints, if even that.
-                                -- auto save is powerful, but hazardous)
-                                _ -> S.liftIO (serializeToFile file nextState) >> continue nextState
+                  Just extent ->
+                        let nextState = stateHandler (extractInput e, fst (extentSize extent)) d in 
+                        case output nextState of 
+                           Terminate -> halt nextState
+                           Save      -> S.liftIO (serializeToFile file nextState) >> continue nextState
+                           Continue  -> continue nextState
 appEvent _ d _ = continue d
-
-customAttr :: A.AttrName
-customAttr = L.listSelectedAttr <> "custom"
 
 stateDataFromString :: String -> Maybe (STLC.Application.App Token)
 stateDataFromString s = do (program, p) <- deserialize s
-                           let state = STLC.Application.App program p (0,0) Nothing (Just homeHandler) state in
+                           let state = STLC.Application.App program p (0,0) Nothing Continue homeHandler state in
                                return state
 
 -- use this when file doesn't exist already

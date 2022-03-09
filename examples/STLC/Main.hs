@@ -11,6 +11,7 @@ import STLC.Serialize
 import Graphics.Vty
 import Brick
 
+import System.Directory
 import System.Environment
 import qualified Brick.AttrMap as A
 import qualified Brick.Main
@@ -58,8 +59,8 @@ stateDataFromString s = do (program, p) <- deserialize s
                                return state
 
 -- use this when file doesn't exist already
--- emptyState :: (STLC.Application.App Token)
--- emptyState = StateData (initialSymbolTable, initialZipper, (0,0), Nothing) (Just homeHandler) state
+emptyState :: STLC.Application.App Token
+emptyState = let state = STLC.Application.App (Assignment (Name Nothing) Unknown Unknown EndOfProgram) [0] (0,0) Nothing Continue homeHandler state in state
 
 theMap :: A.AttrMap
 theMap = A.attrMap defAttr
@@ -79,7 +80,11 @@ main :: IO ()
 main = do args <- getArgs
           if Prelude.length args /= 1
           then putStrLn "Please supply 1 file name"
-          else do contents <- readFile (args !! 0)
-                  case stateDataFromString contents of
-                       Just state -> defaultMain (theApp (args !! 0)) state >> return ()
-                       Nothing -> putStrLn "Could not parse file"
+          else let fileName = args !! 0 in
+               do fileExists <- doesFileExist fileName
+                  if fileExists
+                  then do contents <- readFile fileName
+                          case stateDataFromString contents of
+                               Just state -> defaultMain (theApp fileName) state >> return ()
+                               Nothing -> putStrLn "Could not parse file"
+                  else defaultMain (theApp fileName) emptyState >> return ()

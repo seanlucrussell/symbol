@@ -50,6 +50,7 @@ executable STLC
   build-depends:       base >=4.12 && <4.13,
                        symboleditor,
                        text,
+                       directory,
                        containers,
                        parsec,
                        prettyprinter,

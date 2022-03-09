@@ -13,32 +13,25 @@ import Brick
 
 import System.Directory
 import System.Environment
+import System.Exit
 import qualified Brick.AttrMap as A
 import qualified Brick.Main
 import qualified Brick.Widgets.List as L
 import qualified Control.Monad.State as S
-
--- how we gonna do cool positional stuff:
--- have a function
--- Tree -> Map (Int,Int) Path 
--- (which would have to be renderer dependent) that produces a map mapping xy
--- coordinates on the screen to the path to the term at those coordinates
+import Control.Monad
 
 extractInput :: Key -> ApplicationInput
 extractInput (KChar '\t') = Tab
 extractInput KBackTab     = BackTab
-extractInput (KChar c) = Key c
-extractInput KEnter    = Enter
-extractInput KBS       = Del
-extractInput KUp       = UpArrow
-extractInput KDown     = DownArrow
-extractInput KLeft     = LeftArrow
-extractInput KRight     = RightArrow
-extractInput KEsc     = Esc
-extractInput _             = Other
-
-serializeToFile :: String -> STLC.Application.App Token -> IO ()
-serializeToFile f a = writeFile f (serialize (tree a, path a))
+extractInput (KChar c)    = Key c
+extractInput KEnter       = Enter
+extractInput KBS          = Del
+extractInput KUp          = UpArrow
+extractInput KDown        = DownArrow
+extractInput KLeft        = LeftArrow
+extractInput KRight       = RightArrow
+extractInput KEsc         = Esc
+extractInput _            = Other
 
 appEvent :: String -> STLC.Application.App Token -> BrickEvent n e -> EventM Name (Next (STLC.Application.App Token))
 appEvent file d (VtyEvent (EvKey e [] )) =
@@ -58,14 +51,21 @@ stateDataFromString s = do (program, p) <- deserialize s
                            let state = STLC.Application.App program p (0,0) Nothing Continue homeHandler state in
                                return state
 
--- use this when file doesn't exist already
+serializeToFile :: String -> STLC.Application.App Token -> IO ()
+serializeToFile f a = writeFile f (serialize (tree a, path a))
+
 emptyState :: STLC.Application.App Token
-emptyState = let state = STLC.Application.App (Assignment (Name Nothing) Unknown Unknown EndOfProgram) [0] (0,0) Nothing Continue homeHandler state in state
+emptyState = let state = STLC.Application.App 
+                             (Assignment (Name Nothing) Unknown Unknown EndOfProgram)
+                             [0]
+                             (0,0)
+                             Nothing
+                             Continue
+                             homeHandler
+                             state in state
 
 theMap :: A.AttrMap
-theMap = A.attrMap defAttr
-    [ (L.listSelectedAttr, bg brightBlack)
-    ]
+theMap = A.attrMap defAttr [ (L.listSelectedAttr, bg brightBlack) ]
 
 theApp :: String -> Brick.Main.App (STLC.Application.App Token) e Name
 theApp file = Brick.Main.App
@@ -78,13 +78,13 @@ theApp file = Brick.Main.App
 
 main :: IO ()
 main = do args <- getArgs
-          if Prelude.length args /= 1
-          then putStrLn "Please supply 1 file name"
-          else let fileName = args !! 0 in
-               do fileExists <- doesFileExist fileName
-                  if fileExists
-                  then do contents <- readFile fileName
-                          case stateDataFromString contents of
-                               Just state -> defaultMain (theApp fileName) state >> return ()
-                               Nothing -> putStrLn "Could not parse file"
-                  else defaultMain (theApp fileName) emptyState >> return ()
+          when (Prelude.length args /= 1) (putStrLn "Please supply 1 file name" >> exitFailure)
+          let fileName = args !! 0
+          fileExists <- doesFileExist fileName
+          initialState <- if fileExists
+                          then do contents <- readFile fileName
+                                  case stateDataFromString contents of
+                                       Just state -> return state
+                                       Nothing -> putStrLn "Could not parse file" >> exitFailure
+                          else return emptyState
+          defaultMain (theApp fileName) initialState >> return ()

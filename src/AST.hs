@@ -12,7 +12,7 @@ module AST
   , validatePath
   ) where
 import Utilities
-import Control.Monad
+import Control.Monad ( join )
 
 class Tree a where
   children :: a -> [a]
@@ -48,7 +48,7 @@ select :: Tree a => Int -> a -> Maybe a
 select n = safeListIndex n . children
 
 searchTree :: Tree a => (a -> Bool) -> a -> [a]
-searchTree f t = (if f t then [t] else []) ++ join (fmap (searchTree f) (children t))
+searchTree f t = [t | f t] ++ (searchTree f =<< children t)
 
 search :: Tree a => (a -> Bool) -> a -> [Path]
 search test tree = if test tree then [[]] else []

@@ -24,7 +24,7 @@ library
         Transformations
   default-extensions:  CPP
   ghc-options:         -Wall
-  build-depends:       base >=4.12 && <4.13,
+  build-depends:       base,
                        text,
                        vector,
                        brick,
@@ -47,7 +47,7 @@ executable STLC
         STLC.Serialize
         STLC.Transformations
         STLC.TypeChecker
-  build-depends:       base >=4.12 && <4.13,
+  build-depends:       base,
                        symboleditor,
                        text,
                        directory,

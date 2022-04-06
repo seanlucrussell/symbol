@@ -45,7 +45,7 @@ changeAtIndex n = applyAtIndex n . const
 -- assumes we are in bounds of array
 applyAtIndex :: Int -> (a -> a) -> [a] -> [a]
 applyAtIndex 0 f (y:ys) = f y:ys
-applyAtIndex n f (y:ys) = y:(applyAtIndex (n-1) f ys)
+applyAtIndex n f (y:ys) = y:applyAtIndex (n-1) f ys
 applyAtIndex _ _ _ = undefined
 
 insertAt :: Int -> a -> [a] -> [a]
@@ -76,7 +76,7 @@ firstNumberNotInList l = f 0
      where s = Data.Set.fromList l
            f n = if Data.Set.member n s then f (n+1) else n
 
--- stolen from https://hackage.haskell.org/package/tomland-1.3.3.0/docs/src/Toml.Codec.Types.          html#%3C%21%3E
+-- stolen from https://hackage.haskell.org/package/tomland-1.3.3.0/docs/src/Toml.Codec.Types.html#%3C%21%3E
 infixl 3 <!>
 (<!>) :: Alternative f => (a -> f x) -> (a -> f x) -> (a -> f x)
 (<!>) = liftM2 (<|>)

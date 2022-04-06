@@ -1,9 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-
 {-# LANGUAGE MultiParamTypeClasses #-}
 module STLC.Application
   ( stateHandler
@@ -31,9 +29,12 @@ import Data.Char
 
 positionFromPath :: Rendering -> Path -> (Int, Int)
 positionFromPath pathMap pa = leastInList positions
-        where lowest (x,y) (x',y') = if y < y' then (x,y) else if x < x' then (x,y) else (x',y')
+        where lowest (x,y) (x',y')
+                | y < y' = (x,y)
+                | x < x' = (x,y)
+                | otherwise = (x',y')
               leastInList [] = error "Path not in Rendering. How did that happen?"
-              leastInList (l:[]) = l
+              leastInList [l] = l
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = fmap fst (Prelude.filter (elem pa . paths . snd) (toList pathMap))
 
@@ -157,16 +158,16 @@ selectUp :: (Int, Int) -> (Int, Int)
 selectUp (x,y) = (x,y-1)
 
 addingNameHandler :: String -> FoldMachine
-addingNameHandler s ((Key k),_) a = if isAlphaNum k then updateName (s ++ [k]) a else a
+addingNameHandler s (Key k,_) a = if isAlphaNum k then updateName (s ++ [k]) a else a
 addingNameHandler s (Enter  ,_) a = if s /= "" then a {next = homeHandler} else a
 addingNameHandler s (Del    ,_) a = if s /= "" then updateName (Prelude.init s) a else a
 addingNameHandler _ ( _     ,_) a = a
 
 selectingTermHandler :: [Token] -> Int -> FoldMachine
-selectingTermHandler _ _ ((Key 'p'),_) a = closePopup a
+selectingTermHandler _ _ (Key 'p',_) a = closePopup a
 selectingTermHandler l n (Enter    ,_) a = transform (replaceAtPoint' (l!!n)) (closePopup a)
-selectingTermHandler l n ((Key 'k'),_) a = setPopupSelection l (n-1) a
-selectingTermHandler l n ((Key 'j'),_) a = setPopupSelection l (n+1) a
+selectingTermHandler l n (Key 'k',_) a = setPopupSelection l (n-1) a
+selectingTermHandler l n (Key 'j',_) a = setPopupSelection l (n+1) a
 selectingTermHandler l n (UpArrow  ,_) a = setPopupSelection l (n-1) a
 selectingTermHandler l n (DownArrow,_) a = setPopupSelection l (n+1) a
 selectingTermHandler _ _ (_        ,_) a = a
@@ -177,30 +178,30 @@ saveHandler f i a = f i (a {output = Continue})
 homeHandler :: FoldMachine
 homeHandler (Tab       ,n) a = setPosition n (move nextLeaf a)
 homeHandler (BackTab   ,n) a = setPosition n (move prevLeaf a)
-homeHandler ((Key 'j') ,n) a = setPosition n (move selectFirst a)
-homeHandler ((Key 'l') ,n) a = setPosition n (move selectNext a)
-homeHandler ((Key 'h') ,n) a = setPosition n (move selectPrev a)
-homeHandler ((Key 'k') ,n) a = setPosition n (move goUp a)
-homeHandler ((Key 's') ,n) a = setPosition n (transform swapAssignmentUp a)
-homeHandler ((Key 'S') ,n) a = setPosition n (transform swapAssignmentDown a)
-homeHandler ((Key 'x') ,n) a = setPosition n (transform removeAssignment a)
-homeHandler ((Key 'O') ,_) a = transform insertAssignmentBefore a
-homeHandler ((Key 'o') ,_) a = transform insertAssignmentAfter a
-homeHandler ((Key 'w') ,_) a = a {output = Save, next = saveHandler homeHandler}
-homeHandler ((Key 'c') ,_) a = a {prev = a}
-homeHandler ((Key 'u') ,_) a = prev a
+homeHandler (Key 'j' ,n) a = setPosition n (move selectFirst a)
+homeHandler (Key 'l' ,n) a = setPosition n (move selectNext a)
+homeHandler (Key 'h' ,n) a = setPosition n (move selectPrev a)
+homeHandler (Key 'k' ,n) a = setPosition n (move goUp a)
+homeHandler (Key 's' ,n) a = setPosition n (transform swapAssignmentUp a)
+homeHandler (Key 'S' ,n) a = setPosition n (transform swapAssignmentDown a)
+homeHandler (Key 'x' ,n) a = setPosition n (transform removeAssignment a)
+homeHandler (Key 'O' ,_) a = transform insertAssignmentBefore a
+homeHandler (Key 'o' ,_) a = transform insertAssignmentAfter a
+homeHandler (Key 'w' ,_) a = a {output = Save, next = saveHandler homeHandler}
+homeHandler (Key 'c' ,_) a = a {prev = a}
+homeHandler (Key 'u' ,_) a = prev a
 homeHandler (Esc       ,_) a = a {output = Terminate}
 homeHandler (UpArrow   ,n) a = setPath n (changePosition selectUp a)
 homeHandler (DownArrow ,n) a = setPath n (changePosition selectDown a)
-homeHandler ((Key 'r') ,_) a = if overIdentifier a then updateName "" a else a
-homeHandler ((Key 'p') ,_) a = if overIdentifier a then a else setPopupSelection (possibleTerms (tree a) (path a)) 0 a
-homeHandler ((Key '?') ,_) a = transform (replaceAtPoint' Unknown) a
-homeHandler ((Key 't') ,_) a = transform (replaceAtPoint' TrueTerm) a
-homeHandler ((Key 'f') ,_) a = transform (replaceAtPoint' FalseTerm) a
-homeHandler ((Key 'b') ,_) a = transform (replaceAtPoint' BoolType) a
-homeHandler ((Key '>') ,_) a = transform (replaceAtPoint' (FunctionType Unknown Unknown)) a
-homeHandler ((Key '\\'),_) a = transform (replaceAtPoint' (Function Unknown Unknown Unknown)) a
+homeHandler (Key 'r' ,_) a = if overIdentifier a then updateName "" a else a
+homeHandler (Key 'p' ,_) a = if overIdentifier a then a else setPopupSelection (possibleTerms (tree a) (path a)) 0 a
+homeHandler (Key '?' ,_) a = transform (replaceAtPoint' Unknown) a
+homeHandler (Key 't' ,_) a = transform (replaceAtPoint' TrueTerm) a
+homeHandler (Key 'f' ,_) a = transform (replaceAtPoint' FalseTerm) a
+homeHandler (Key 'b' ,_) a = transform (replaceAtPoint' BoolType) a
+homeHandler (Key '>' ,_) a = transform (replaceAtPoint' (FunctionType Unknown Unknown)) a
+homeHandler (Key '\\',_) a = transform (replaceAtPoint' (Function Unknown Unknown Unknown)) a
 homeHandler (_         ,_) a = a
 
 stateHandler :: FoldMachine
-stateHandler k a = (next a) k a
+stateHandler k a = next a k a

@@ -9,7 +9,7 @@ import STLC.Data
 import qualified Renderer
 
 import qualified Data.Map as M
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 import Data.Text
 
 -- concept
@@ -48,6 +48,7 @@ import Data.Text
 renderContextAtPoint :: Path -> Token -> [String]
 renderContextAtPoint [] _ = []
 renderContextAtPoint (2:ps) (Function n _ t) = renderContextAtPoint ps t ++ [extractName n]
+renderContextAtPoint (3:ps) (Assignment n _ _ t) = renderContextAtPoint ps t ++ [extractName n]
 renderContextAtPoint (p:ps) t = renderContextAtPoint ps (children t !! p)
 
 instance Renderer.Render (Token, [String]) where
@@ -66,7 +67,7 @@ generatePathMap :: [Annotation] -> (Int,Int) -> SimpleDocStream Annotation -> Re
 generatePathMap _ _ SFail                      = M.empty
 generatePathMap _ _ SEmpty                     = M.empty
 generatePathMap p x (SChar c s)                = M.insert x (Renderer.Cell c (style p) (paths p)) (generatePathMap p (forward 1 x) s)
-generatePathMap p x (SText n t s)              = M.union (M.fromList [((forward m x),Renderer.Cell c (style p) (paths p)) | (c,m) <- Prelude.zip (unpack t) [0..]])
+generatePathMap p x (SText n t s)              = M.union (M.fromList [(forward m x,Renderer.Cell c (style p) (paths p)) | (c,m) <- Prelude.zip (unpack t) [0..]])
                                                            (generatePathMap p (forward n x) s)
 generatePathMap p x (SLine n s)                = generatePathMap p (down n x) s
 generatePathMap p x (SAnnPush p' s)            = generatePathMap (p':p) x s
@@ -98,15 +99,23 @@ extractName (Name (Just n)) = n
 extractName (Name Nothing) = "?"
 extractName t = error "trying to extract name from token " ++ show t
 
+unfilledValue :: Doc Annotation
+unfilledValue = "_"
+emptyName :: Doc Annotation
+emptyName = " "
+
 renderToken :: Token -> [String] -> Path -> Doc Annotation
 renderToken (Identifier i) context p = annotate (Location p) $ annotate Cyan (pretty (context!!i))
-renderToken (Name (Just "")) _ p = annotate (Location p) $ " "
+renderToken (Name (Just "")) _ p = annotate (Location p) emptyName
 renderToken (Name (Just n)) _ p = annotate (Location p) $ annotate Cyan (pretty n)
-renderToken (Name Nothing) _ p = annotate (Location p) $ annotate Cyan ("_____")
-renderToken (Function x y z) context p  = annotate (Location p) $ Data.Text.Prettyprint.Doc.group (hang 1 (vcat ["λ" <> x' <> ":" <> y' <> ".", z' ]))
+renderToken (Name Nothing) _ p = annotate (Location p) $ annotate Cyan unfilledValue
+renderToken (Function x y z) context p  = annotate (Location p) $ Prettyprinter.group (hang 1 (vcat ["λ" <> x' <> ":" <> y' <> ".", z' ]))
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
               z' = renderToken z (extractName x:context) (p ++ [2])
+renderToken (Application x y@Application{}) context p  = annotate (Location p) $ align (sep [x', parens y'])
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
 renderToken (Application x y) context p  = annotate (Location p) $ align (sep [x', y'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
@@ -116,7 +125,10 @@ renderToken (Conditional x y z) context p  = annotate (Location p) $ align (sep 
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])
               z' = renderToken z context (p ++ [2])
-renderToken Unknown _ p = annotate (Location p) $ "_____"
+renderToken Unknown _ p = annotate (Location p) unfilledValue
+renderToken (FunctionType x@FunctionType{} y) context p  = annotate (Location p) $ align (sep [parens x', "->", y'])
+        where x' = renderToken x context (p ++ [0])
+              y' = renderToken y context (p ++ [1])
 renderToken (FunctionType x y) context p  = annotate (Location p) $ align (sep [x', "->", y'])
         where x' = renderToken x context (p ++ [0])
               y' = renderToken y context (p ++ [1])

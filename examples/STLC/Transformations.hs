@@ -50,7 +50,7 @@ insertAssignmentAfter _ _ = Nothing
 -- gotta be some way to wrap this up into some Token env typeclass or something.
 -- Really we just need to know if the environment depth is less than i
 applyToFreeVars :: (Int -> Int) -> Token -> Token
-applyToFreeVars f t = app 0 t
+applyToFreeVars f = app 0
   where app depth (Identifier i) = if i >= depth then Identifier (f i) else Identifier i
         app depth (Function a b c) = Function a b (app (depth + 1) c)
         app depth (Assignment a b c d) = Assignment a b (app depth c) (app (depth + 1) d)
@@ -101,38 +101,22 @@ swapAssignmentDown t (p:ps) = do swapped <- swapAdjacent p (children t)
                                  return (newToken'', p+1:ps)
 swapAssignmentDown _ _ = Nothing
 
-extractType :: Token -> Maybe Token
-extractType (Function _ t _) = Just t
-extractType (Assignment _ t _ _) = Just t
-extractType _ = Nothing
-
 typeToArity :: Token -> Maybe Integer
 typeToArity (FunctionType _ t) = fmap (+1) (typeToArity t)
 typeToArity BoolType = Just 0
 typeToArity _ = Nothing
 
--- If arity is not well defined (i.e. final type is Unknown), this evaluates to
--- Nothing. Otherwise, it evaluates to Just n, where n is a natural number
--- (which may be 0, for identifiers which refer to non-function values)
-identifierArity :: Path -> Token -> Token -> Maybe Integer
-identifierArity path identifier tree = findIdentifierDefinition path identifier tree >>= extractType >>= typeToArity
-
-findIdentifierDefinition :: Path -> Token -> Token -> Maybe Token
-findIdentifierDefinition path (Identifier n) tree = contextAtPoint path tree >>= safeListIndex n
-findIdentifierDefinition _ _ _ = Nothing
-
 contextAtPoint :: Path -> Token -> Maybe [Token]
 contextAtPoint [] _ = Just []
-contextAtPoint (3:ns) (Assignment _ t _ c) = fmap (t:) (contextAtPoint ns c)
-contextAtPoint (2:ns) (Function _ t b) = fmap (t:) (contextAtPoint ns b)
+contextAtPoint (3:ns) (Assignment _ t _ c) = fmap (++[t]) (contextAtPoint ns c)
+contextAtPoint (2:ns) (Function _ t b) = fmap (++[t]) (contextAtPoint ns b)
 contextAtPoint (n:ns) t = do child <- select n t
                              contextAtPoint ns child
 
 functionCalls :: Path -> Token -> [Token]
-functionCalls p t = concat [ fmap (app i) [0..(n x)] | (x,i) <- zip context [0..]]
+functionCalls p t = concat [ fmap (app i) [0..(fromMaybe 0 (typeToArity x))] | (x,i) <- zip context [0..]]
         where app x 0 = Identifier x
               app x m = Application (app x (m-1)) Unknown
-              n x = fromMaybe 0 (identifierArity p x t)
               context = fromMaybe [] (contextAtPoint p t)
 
 standardTerms :: [Token]
@@ -145,7 +129,7 @@ standardTerms = [ TrueTerm
                 , Unknown ]
 
 termTypeChecks :: Token -> Path -> Token -> Bool
-termTypeChecks t' p t = fromMaybe False (fmap validateProgram (replaceAtPoint t p t'))
+termTypeChecks t' p t = maybe False validateProgram (replaceAtPoint t p t')
 
 possibleTerms :: Token -> Path -> [Token]
 possibleTerms t p = filter (termTypeChecks t p) (functionCalls p t ++ standardTerms)

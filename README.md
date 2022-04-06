@@ -90,6 +90,9 @@ appropriately
 - alternative renderers: algol, lisp, python, prose, unreadable
 - select wrapping expression/value or something
 - swap between renderers
+- multiline strings
+- mouse interaction
+- help screen. show all keybindings for different modes along with an explanation
 - status bar? show info about location under cursor, current renderer?
 - comments? could be useful for annotating code. can be a sort of statement.
   could also be useful for refactoring; e.g. when a change must mess with

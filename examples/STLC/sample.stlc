@@ -4,24 +4,20 @@
   (BoolT)
   (F)
   (Assign
-   (Name:fff)
+   (Name:not)
    (FnT
     (Unknown)
-    (Unknown))
+    (BoolT))
    (Unknown)
    (Assign
     (EmptyName)
     (Unknown)
-    (Unknown)
-    (Assign
-     (EmptyName)
-     (Unknown)
-     (Unknown)
-     (Assign
-      (EmptyName)
-      (Unknown)
-      (Unknown)
-      (EOP))))))
+    (App
+     (Id:0)
+     (Unknown))
+    (EOP))))
  (Path
   (3)
-  (0)))
+  (3)
+  (2)
+  (1)))

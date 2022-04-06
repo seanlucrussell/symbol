@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module STLC.Data
   ( Token (..)
   ) where
@@ -26,10 +25,10 @@ instance Tree Token where
    children (FunctionType a b) = [a,b]
    children (Assignment a b c d) = [a,b,c,d]
    children _ = []
-   
-   update (Function _ _ _) [a,b,c] = Just (Function a b c)
-   update (Application _ _) [a,b] = Just (Application a b)
-   update (Conditional _ _ _) [a,b,c] = Just (Conditional a b c)
-   update (FunctionType _ _) [a,b] = Just (FunctionType a b)
-   update (Assignment _ _ _ _) [a,b,c,d] = Just (Assignment a b c d)
+
+   update Function {} [a,b,c] = Just (Function a b c)
+   update Application {} [a,b] = Just (Application a b)
+   update Conditional {} [a,b,c] = Just (Conditional a b c)
+   update FunctionType {} [a,b] = Just (FunctionType a b)
+   update Assignment {} [a,b,c,d] = Just (Assignment a b c d)
    update _ _ = Nothing

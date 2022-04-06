@@ -29,7 +29,7 @@ prevLeaf :: Tree a => Movement a
 prevLeaf = searchBackward isLeaf
 
 selectLast :: Tree a => Movement a
-selectLast t p = selectFirst t p >>= (untilFailure (selectNext t))
+selectLast t p = selectFirst t p >>= untilFailure (selectNext t)
 
 selectFirst :: Tree a => Movement a
 selectFirst = attemptPathManipulation selectFirst''

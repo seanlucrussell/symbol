@@ -8,55 +8,54 @@ import STLC.Application
 import STLC.BrickRenderer
 import STLC.Serialize
 
-import Graphics.Vty
-import Brick
+import qualified Graphics.Vty as V
+import qualified Brick as B
 
-import System.Directory
 import System.Environment
 import System.Exit
+import Control.Applicative
 import qualified Brick.AttrMap as A
 import qualified Brick.Main
 import qualified Brick.Widgets.List as L
 import qualified Control.Monad.State as S
 import Control.Monad
 
-extractInput :: Key -> ApplicationInput
-extractInput (KChar '\t') = Tab
-extractInput KBackTab     = BackTab
-extractInput (KChar c)    = Key c
-extractInput KEnter       = Enter
-extractInput KBS          = Del
-extractInput KUp          = UpArrow
-extractInput KDown        = DownArrow
-extractInput KLeft        = LeftArrow
-extractInput KRight       = RightArrow
-extractInput KEsc         = Esc
-extractInput _            = Other
+extractInput :: V.Key -> ApplicationInput
+extractInput (V.KChar '\t') = Tab
+extractInput V.KBackTab     = BackTab
+extractInput (V.KChar c)    = Key c
+extractInput V.KEnter       = Enter
+extractInput V.KBS          = Del
+extractInput V.KUp          = UpArrow
+extractInput V.KDown        = DownArrow
+extractInput V.KLeft        = LeftArrow
+extractInput V.KRight       = RightArrow
+extractInput V.KEsc         = Esc
+extractInput _              = Other
 
-appEvent :: String -> STLC.Application.App Token -> BrickEvent n e -> EventM Name (Next (STLC.Application.App Token))
-appEvent file d (VtyEvent (EvKey e [] )) =
+appEvent :: String -> App Token -> B.BrickEvent n e -> B.EventM Name (B.Next (App Token))
+appEvent file d (B.VtyEvent (V.EvKey e [] )) =
              do mExtent <- Brick.Main.lookupExtent MainWindowName
                 case mExtent of
                   Nothing -> error "Couldn't find main window display widget!"
                   Just extent ->
-                        let nextState = stateHandler (extractInput e, fst (extentSize extent)) d in 
-                        case output nextState of 
-                           Terminate -> halt nextState
-                           Save      -> S.liftIO (serializeToFile file nextState) >> continue nextState
-                           Continue  -> continue nextState
-appEvent _ d _ = continue d
+                        let nextState = stateHandler (extractInput e, fst (B.extentSize extent)) d in
+                        case output nextState of
+                           Terminate -> Brick.Main.halt nextState
+                           Save      -> S.liftIO (serializeToFile file nextState) >> Brick.Main.continue nextState
+                           Continue  -> Brick.Main.continue nextState
+appEvent _ d _ = Brick.Main.continue d
 
-stateDataFromString :: String -> Maybe (STLC.Application.App Token)
+stateDataFromString :: String -> Maybe (App Token)
 stateDataFromString s = do (program, p) <- deserialize s
-                           let state = STLC.Application.App program p (0,0) Nothing Continue homeHandler state in
+                           let state = App program p (0,0) Nothing Continue homeHandler state in
                                return state
 
-serializeToFile :: String -> STLC.Application.App Token -> IO ()
+serializeToFile :: String -> App Token -> IO ()
 serializeToFile f a = writeFile f (serialize (tree a, path a))
 
-emptyState :: STLC.Application.App Token
-emptyState = let state = STLC.Application.App 
-                             (Assignment (Name Nothing) Unknown Unknown EndOfProgram)
+emptyState :: App Token
+emptyState = let state = App (Assignment (Name Nothing) Unknown Unknown EndOfProgram)
                              [0]
                              (0,0)
                              Nothing
@@ -65,26 +64,22 @@ emptyState = let state = STLC.Application.App
                              state in state
 
 theMap :: A.AttrMap
-theMap = A.attrMap defAttr [ (L.listSelectedAttr, bg brightBlack) ]
+theMap = A.attrMap V.defAttr [ (L.listSelectedAttr, B.bg V.brightBlack) ]
 
-theApp :: String -> Brick.Main.App (STLC.Application.App Token) e Name
+theApp :: String -> Brick.Main.App (App Token) e Name
 theApp file = Brick.Main.App
-          { appDraw = drawUI
-          , appChooseCursor = showFirstCursor
-          , appHandleEvent = appEvent file
-          , appStartEvent = return
-          , appAttrMap = const theMap
+          { B.appDraw = drawUI
+          , B.appChooseCursor = Brick.Main.showFirstCursor
+          , B.appHandleEvent = appEvent file
+          , B.appStartEvent = return
+          , B.appAttrMap = const theMap
           }
 
 main :: IO ()
 main = do args <- getArgs
           when (Prelude.length args /= 1) (putStrLn "Please supply 1 file name" >> exitFailure)
-          let fileName = args !! 0
-          fileExists <- doesFileExist fileName
-          initialState <- if fileExists
-                          then do contents <- readFile fileName
-                                  case stateDataFromString contents of
-                                       Just state -> return state
-                                       Nothing -> putStrLn "Could not parse file" >> exitFailure
-                          else return emptyState
-          defaultMain (theApp fileName) initialState >> return ()
+          let fileName = head args
+          initialState <- (do contents <- readFile fileName
+                              maybe (putStrLn "Could not parse file" >> exitFailure) return (stateDataFromString contents))
+                           <|> return emptyState
+          void (Brick.Main.defaultMain (theApp fileName) initialState)

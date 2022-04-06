@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 module STLC.BrickRenderer
   ( drawMainWindow
@@ -51,14 +50,14 @@ grid :: Map (Int,Int) t -> t -> [[t]]
 grid m d = [ [fromMaybe d (Data.Map.lookup (x,y) m) | y <- [yMin m..yMax m] ] | x <- [xMin m..xMax m]]
 
 cellToWidget :: Cell -> Widget Name
-cellToWidget (Cell c Highlight _) = modifyDefAttr (<> defAttr `withStyle` standout) (str [c])
-cellToWidget (Cell c Yellow _) = modifyDefAttr (<> defAttr `withForeColor` yellow) (str [c])
-cellToWidget (Cell c White _) = modifyDefAttr (<> defAttr `withForeColor` white) (str [c])
-cellToWidget (Cell c Green _) = modifyDefAttr (<> defAttr `withForeColor` green) (str [c])
-cellToWidget (Cell c Blue _) = modifyDefAttr (<> defAttr `withForeColor` blue) (str [c])
-cellToWidget (Cell c Magenta _) = modifyDefAttr (<> defAttr `withForeColor` magenta) (str [c])
-cellToWidget (Cell c Cyan _) = modifyDefAttr (<> defAttr `withForeColor` cyan) (str [c])
-cellToWidget (Cell c Red _) = modifyDefAttr (<> defAttr `withForeColor` red) (str [c])
+cellToWidget (Cell c Highlight _) = modifyDefAttr (const $  defAttr `withStyle` standout) (str [c])
+cellToWidget (Cell c Yellow _) = modifyDefAttr (const $  defAttr `withForeColor` yellow) (str [c])
+cellToWidget (Cell c White _) = modifyDefAttr (const $  defAttr `withForeColor` white) (str [c])
+cellToWidget (Cell c Green _) = modifyDefAttr (const $  defAttr `withForeColor` green) (str [c])
+cellToWidget (Cell c Blue _) = modifyDefAttr (const $  defAttr `withForeColor` blue) (str [c])
+cellToWidget (Cell c Magenta _) = modifyDefAttr (const $  defAttr `withForeColor` magenta) (str [c])
+cellToWidget (Cell c Cyan _) = modifyDefAttr (const $  defAttr `withForeColor` cyan) (str [c])
+cellToWidget (Cell c Red _) = modifyDefAttr (const $  defAttr `withForeColor` red) (str [c])
 cellToWidget (Cell c Renderer.Default _) = str [c]
 
 gridMap :: (a -> b) -> [[a]] -> [[b]]
@@ -94,7 +93,7 @@ popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.
         listDrawElement :: Bool -> Token -> Widget Name
         listDrawElement selected a = C.hCenter $ hLimit 35 $ vLimit 1 $
                                 if selected 
-                                then renderForPopup (a,renderContext) Brick.<+> modifyDefAttr (<> defAttr `withStyle` standout) (Brick.fill ' ')
+                                then renderForPopup (a,renderContext) Brick.<+> modifyDefAttr (const $  defAttr `withStyle` standout) (Brick.fill ' ')
                                 else renderAsWidget (a,renderContext) Brick.<+> Brick.fill ' '
         box = hLimit 35 $
               vLimit 15 $

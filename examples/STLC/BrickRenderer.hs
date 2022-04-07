@@ -37,9 +37,6 @@ yMin = minimum . fmap snd . keys
 yMax :: Map (Int,Int) t -> Int
 yMax = maximum . fmap snd . keys
 
--- renderAsWidget :: Render a => a -> Widget Name
--- renderAsWidget = renderingToWidget . render 100
-
 renderAsWidget :: Render a => a -> Widget Name
 renderAsWidget t = Brick.Widget Brick.Fixed  Brick.Fixed
         (do ctx <- Brick.getContext
@@ -89,8 +86,11 @@ instance Ord Name where
 
 drawUI :: App Token -> [Widget Name]
 drawUI a = (case popupData a of
-     Just (l, n) -> [popup (renderContextAtPoint (path a) (tree a)) (position a) (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1))]
+     Just (l, n) -> [dropdown l n]
      _ -> []) ++ [drawMainWindow (path a) (tree a,[] :: [String])]
+     where dropdown l n = Brick.Widget Brick.Fixed  Brick.Fixed
+                     (do ctx <- Brick.getContext
+                         Brick.render $ popup (renderContextAtPoint (path a) (tree a)) (getPosition (ctx^.Brick.availWidthL) a) (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1)))
 
 drawMainWindow :: Render a => Path -> a -> Widget Name
 drawMainWindow p = Brick.reportExtent MainWindowName . renderAsWidgetWithHighlight p

@@ -6,11 +6,18 @@ module STLC.Transformations
   , insertAssignmentBefore
   , insertAssignmentAfter
   , removeAssignment
+  , selectFirst'
+  , selectNext'
+  , selectPrev'
+  , nextLeaf'
+  , prevLeaf'
+  , goUp'
   ) where
 
 import AST
 import Utilities
 import Transformations
+import Movements
 
 import STLC.TypeChecker
 import STLC.Data
@@ -25,6 +32,19 @@ import Data.Maybe
 -- 
 -- evalUnderCursor :: Transformation Token
 -- evalUnderCursor = undefined
+
+selectFirst' :: Tree a => Transformation a
+selectFirst' = movementToTransformation selectFirst 
+selectNext' :: Tree a => Transformation a
+selectNext' = movementToTransformation selectNext
+selectPrev' :: Tree a => Transformation a
+selectPrev' = movementToTransformation selectPrev
+nextLeaf' :: Tree a => Transformation a
+nextLeaf' = movementToTransformation nextLeaf
+prevLeaf' :: Tree a => Transformation a
+prevLeaf' = movementToTransformation prevLeaf
+goUp' :: Tree a => Transformation a
+goUp' = movementToTransformation goUp
 
 removeAssignment :: Transformation Token
 removeAssignment (Assignment a b c (Assignment _ _ _ EndOfProgram)) _ = return (Assignment a b c EndOfProgram, [0])

@@ -30,4 +30,4 @@ layout n = layoutSmart (LayoutOptions (AvailablePerLine n 1))
 
 highlightAtPath :: Path -> Rendering -> Rendering
 highlightAtPath p = Data.Map.map highlight
-        where highlight c = if elem p (paths c) then c {style = Highlight} else c
+        where highlight c = if p `elem` paths c then c {style = Highlight} else c

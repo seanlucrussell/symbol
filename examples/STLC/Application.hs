@@ -10,10 +10,10 @@ module STLC.Application
   , SymbolAppInput
   , ApplicationInput (..)
   , ApplicationOutput (..)
+  , getPosition
   ) where
 
 import AST
-import Movements
 import Renderer
 import Transformations
 
@@ -22,12 +22,11 @@ import STLC.Renderer ()
 import STLC.Transformations
 import STLC.TypeChecker
 
-import Data.Maybe
 import Data.Map
 import Data.Char
 
-positionFromPath :: Rendering -> Path -> (Int, Int)
-positionFromPath pathMap pa = leastInList positions
+position :: Rendering -> Path -> (Int, Int)
+position pathMap pa = leastInList positions
         where lowest (x,y) (x',y')
                 | y < y' = (x,y)
                 | x < x' = (x,y)
@@ -37,10 +36,6 @@ positionFromPath pathMap pa = leastInList positions
               leastInList (l:ls) = lowest l (leastInList ls)
               positions = fmap fst (Prelude.filter (elem pa . paths . snd) (toList pathMap))
 
-setPath :: Int -> App Token -> App Token
-setPath n a = fromMaybe a (do p <- positionToPath n a
-                              return (a {path = p}))
-
 type SymbolAppInput = (ApplicationInput, Int)
 data ApplicationInput = Key Char | Enter | Del | UpArrow | DownArrow | LeftArrow | RightArrow | Esc | Tab | BackTab |  Other
 data ApplicationOutput = Continue | Terminate | Save
@@ -48,7 +43,6 @@ type PopupData a = ([a], Int)
 data App a = App
                 { tree :: a
                 , path :: Path
-                , position :: (Int, Int)
                 , popupData :: Maybe (PopupData a)
                 , output :: ApplicationOutput
                 , next :: FoldMachine
@@ -65,21 +59,11 @@ renderApp windowWidth a = render windowWidth (tree a,[] :: [String])
 updateName :: String -> App Token -> App Token
 updateName s a = partialTransform (replaceAtPoint' (Name (Just s))) (a {next = addingNameHandler s})
 
-changePosition :: Tree a => ((Int,Int) -> (Int,Int)) -> App a -> App a
-changePosition f a = a {position = f (position a)}
-
 setPopupSelection :: [Token] -> Int -> App Token -> App Token
 setPopupSelection l n a = a {popupData = Just (l,mod n (Prelude.length l)), next = selectingTermHandler l n}
 
-positionToPath :: Int -> App Token -> Maybe Path
-positionToPath n a = fmap (Prelude.head . Renderer.paths) (Data.Map.lookup (position a) (renderApp n a))
-
-setPosition :: Int -> App Token -> App Token
-setPosition n a = a {position = positionFromPath (renderApp n a) (path a)}
-
--- try to apply a movement
-move :: Movement Token -> App Token -> App Token
-move = partialTransform . movementToTransformation
+getPosition :: Int -> App Token -> (Int,Int)
+getPosition n a = position (renderApp n a) (path a)
 
 -- try to apply a transformation, commiting if the transformation leaves the
 -- data structures in a valid state
@@ -98,6 +82,8 @@ partialTransform t a = case t (tree a) (path a) of
                                                 then a {tree = newTerm, path = newPath}
                                                 else a
                      Nothing -> a
+
+-- in the future, all navigation should be done based on the view. i.e. select next, select prev, up, down. whatever. it should take into account the view.
 
 -- cool idea: certain input events don't fully specify a new, valid state. e.g.
 -- naming a variable. you could have invalid variable names while editing. so
@@ -140,22 +126,6 @@ overIdentifier a = case treeUnderCursor (path a) (tree a) of
                         Just (Name _) -> True
                         _ -> False
 
--- needs more thought, but heres some improvements:
---  1. should always result either in a new path or no change whatsoever
---  2. left/right movement should stay on the same level or something. idk
---  3. up/down movement should keep cursor in same location until we do
---     right/left movement, except maybe see next point
---  4. if next/previous line is shorter and at the end of a line, up/down
---     movement should move to end of line (tho cursor should be in same
---     location. in other words, select the nearest path on that line). same
---     goes for short lines
---  might need a bounding box to accomadate some of these things. e.g. min/max
---  search space so when we search down/up we know when to stop
-selectDown :: (Int, Int) -> (Int, Int)
-selectDown (x,y) = (x,y+1)
-selectUp :: (Int, Int) -> (Int, Int)
-selectUp (x,y) = (x,y-1)
-
 addingNameHandler :: String -> FoldMachine
 addingNameHandler s (Key k,_) a = if isAlphaNum k then updateName (s ++ [k]) a else a
 addingNameHandler s (Enter  ,_) a = if s /= "" then a {next = homeHandler} else a
@@ -175,23 +145,23 @@ saveHandler :: FoldMachine -> FoldMachine
 saveHandler f i a = f i (a {output = Continue})
 
 homeHandler :: FoldMachine
-homeHandler (Tab       ,n) a = setPosition n (move nextLeaf a)
-homeHandler (BackTab   ,n) a = setPosition n (move prevLeaf a)
-homeHandler (Key 'j' ,n) a = setPosition n (move selectFirst a)
-homeHandler (Key 'l' ,n) a = setPosition n (move selectNext a)
-homeHandler (Key 'h' ,n) a = setPosition n (move selectPrev a)
-homeHandler (Key 'k' ,n) a = setPosition n (move goUp a)
-homeHandler (Key 's' ,n) a = setPosition n (transform swapAssignmentUp a)
-homeHandler (Key 'S' ,n) a = setPosition n (transform swapAssignmentDown a)
-homeHandler (Key 'x' ,n) a = setPosition n (transform removeAssignment a)
+homeHandler (Tab       ,_) a = partialTransform nextLeaf' a
+homeHandler (BackTab   ,_) a = partialTransform prevLeaf' a
+homeHandler (Key 'j' ,_) a = partialTransform selectFirst' a
+homeHandler (Key 'l' ,_) a = partialTransform selectNext' a
+homeHandler (Key 'h' ,_) a = partialTransform selectPrev' a
+homeHandler (Key 'k' ,_) a = partialTransform goUp' a
+homeHandler (Key 's' ,_) a = transform swapAssignmentUp a
+homeHandler (Key 'S' ,_) a = transform swapAssignmentDown a
+homeHandler (Key 'x' ,_) a = transform removeAssignment a
 homeHandler (Key 'O' ,_) a = transform insertAssignmentBefore a
 homeHandler (Key 'o' ,_) a = transform insertAssignmentAfter a
 homeHandler (Key 'w' ,_) a = a {output = Save, next = saveHandler homeHandler}
 homeHandler (Key 'c' ,_) a = a {prev = a}
 homeHandler (Key 'u' ,_) a = prev a
 homeHandler (Esc       ,_) a = a {output = Terminate}
-homeHandler (UpArrow   ,n) a = setPath n (changePosition selectUp a)
-homeHandler (DownArrow ,n) a = setPath n (changePosition selectDown a)
+-- homeHandler (UpArrow   ,n) a = setPath n (changePosition selectUp a)
+-- homeHandler (DownArrow ,n) a = setPath n (changePosition selectDown a)
 homeHandler (Key 'r' ,_) a = if overIdentifier a then updateName "" a else a
 homeHandler (Key 'p' ,_) a = if overIdentifier a then a else setPopupSelection (possibleTerms (tree a) (path a)) 0 a
 homeHandler (Key '?' ,_) a = transform (replaceAtPoint' Unknown) a

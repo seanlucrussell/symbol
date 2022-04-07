@@ -48,7 +48,7 @@ appEvent _ d _ = Brick.Main.continue d
 
 stateDataFromString :: String -> Maybe (App Token)
 stateDataFromString s = do (program, p) <- deserialize s
-                           let state = App program p (0,0) Nothing Continue homeHandler state in
+                           let state = App program p Nothing Continue homeHandler state in
                                return state
 
 serializeToFile :: String -> App Token -> IO ()
@@ -57,7 +57,6 @@ serializeToFile f a = writeFile f (serialize (tree a, path a))
 emptyState :: App Token
 emptyState = let state = App (Assignment (Name Nothing) Unknown Unknown EndOfProgram)
                              [0]
-                             (0,0)
                              Nothing
                              Continue
                              homeHandler

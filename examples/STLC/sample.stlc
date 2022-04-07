@@ -14,10 +14,20 @@
     (Unknown)
     (App
      (Id:0)
-     (Unknown))
+     (If
+      (App
+       (Id:0)
+       (App
+        (Id:0)
+        (T)))
+      (App
+       (Id:0)
+       (F))
+      (F)))
     (EOP))))
  (Path
   (3)
   (3)
   (2)
-  (1)))
+  (1)
+  (2)))

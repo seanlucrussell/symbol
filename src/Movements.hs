@@ -3,7 +3,6 @@ module Movements
   ( selectFirst
   , selectNext
   , selectPrev
-  , selectLast
   , nextLeaf
   , prevLeaf
   , Movement
@@ -12,24 +11,21 @@ module Movements
 import AST
 import Utilities
 
-import Data.Maybe
+import Data.List
 
 type Movement a = a -> Path -> Maybe Path
 
 searchForward :: Tree a => (a -> Bool) -> Movement a
-searchForward test tree path = listToMaybe (filter (>path) (search test tree))
+searchForward test tree path = find (>path) (search test tree)
 
 searchBackward :: Tree a => (a -> Bool) -> Movement a
-searchBackward test tree path = listToMaybe (reverse (filter (<path) (search test tree)))
+searchBackward test tree path = find (<path) (reverse (search test tree))
 
 nextLeaf :: Tree a => Movement a
 nextLeaf = searchForward isLeaf
 
 prevLeaf :: Tree a => Movement a
 prevLeaf = searchBackward isLeaf
-
-selectLast :: Tree a => Movement a
-selectLast t p = selectFirst t p >>= untilFailure (selectNext t)
 
 selectFirst :: Tree a => Movement a
 selectFirst = attemptPathManipulation selectFirst''

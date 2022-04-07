@@ -23,27 +23,35 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import qualified Brick.Widgets.List as L
 import qualified Data.Vector as Vec
+import Lens.Micro
 
 xMin :: Map (Int,Int) t -> Int
-xMin m = minimum (fmap fst (keys m))
+xMin = minimum . fmap fst . keys
 
 xMax :: Map (Int,Int) t -> Int
-xMax m = maximum (fmap fst (keys m))
+xMax = maximum . fmap fst . keys
 
 yMin :: Map (Int,Int) t -> Int
-yMin m = minimum (fmap snd (keys m))
+yMin = minimum . fmap snd . keys
 
 yMax :: Map (Int,Int) t -> Int
-yMax m = maximum (fmap snd (keys m))
+yMax = maximum . fmap snd . keys
+
+-- renderAsWidget :: Render a => a -> Widget Name
+-- renderAsWidget = renderingToWidget . render 100
 
 renderAsWidget :: Render a => a -> Widget Name
-renderAsWidget = renderingToWidget . render 100
+renderAsWidget t = Brick.Widget Brick.Fixed  Brick.Fixed
+        (do ctx <- Brick.getContext
+            Brick.render $ renderingToWidget (render (ctx^.Brick.availWidthL) t))
+
+renderAsWidgetWithHighlight :: Render a => Path -> a -> Widget Name
+renderAsWidgetWithHighlight p t = Brick.Widget Brick.Fixed  Brick.Fixed
+        (do ctx <- Brick.getContext
+            Brick.render $ renderingToWidget (highlightAtPath p (render (ctx^.Brick.availWidthL) t)))
 
 renderForPopup :: Render a => a -> Widget Name
 renderForPopup x = renderingToWidget (Data.Map.map (\n -> n {style = Highlight}) (render 100 x))
-
-renderWithPathHighlighted :: Render a => Path -> Int -> a -> Widget Name
-renderWithPathHighlighted p n = renderingToWidget . highlightAtPath p . render n
 
 -- takes map over 2d coordinates and a default value and returns a 2d grid
 grid :: Map (Int,Int) t -> t -> [[t]]
@@ -85,10 +93,10 @@ drawUI a = (case popupData a of
      _ -> []) ++ [drawMainWindow (path a) (tree a,[] :: [String])]
 
 drawMainWindow :: Render a => Path -> a -> Widget Name
-drawMainWindow p = Brick.reportExtent MainWindowName . renderWithPathHighlighted p 100
+drawMainWindow p = Brick.reportExtent MainWindowName . renderAsWidgetWithHighlight p
 
 popup :: [String] -> (Int, Int) -> L.List Name Token -> Widget Name
-popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 $ box
+popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 box
     where
         listDrawElement :: Bool -> Token -> Widget Name
         listDrawElement selected a = C.hCenter $ hLimit 35 $ vLimit 1 $

@@ -96,7 +96,7 @@ data Annotation = Highlight | Yellow | White | Green | Blue | Magenta | Cyan | R
 
 extractName :: Token -> String
 extractName (Name (Just n)) = n
-extractName (Name Nothing) = "?"
+extractName (Name Nothing) = "?" -- error "Attempting to to render a name that hasn't been defined yet"
 extractName t = error "trying to extract name from token " ++ show t
 
 unfilledValue :: Doc Annotation

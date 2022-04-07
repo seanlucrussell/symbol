@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module STLC.TypeChecker
-  ( validateProgram ) where
+  ( validateProgram
+  , validateSTLCPath ) where
 
+import AST
 import STLC.Data
 import Utilities
 
@@ -32,9 +34,9 @@ valType _ _ = Nothing
 
 valTrm :: Context -> Token -> Maybe Trm
 valTrm c (Identifier t) = safeListIndex t c >> return (Ref t)
-valTrm _ (Unknown) = Just UnknownTrm
-valTrm _ (TrueTerm) = Just T
-valTrm _ (FalseTerm) = Just F
+valTrm _ Unknown = Just UnknownTrm
+valTrm _ TrueTerm = Just T
+valTrm _ FalseTerm = Just F
 valTrm c (Application x y) = do x' <- valTrm c x
                                 y' <- valTrm c y
                                 xt <- typeOf c x
@@ -67,8 +69,15 @@ valAssign c (Assignment (Name _) y z w) = do y' <- valType c y
                                              return (Assign y' z' next)
 valAssign _ _ = Nothing
 
-validateProgram :: Token -> Bool
-validateProgram = maybeToBool . valAssign emptyContext
+validateSTLCPath :: Token -> Path -> Bool
+validateSTLCPath t p = validatePath t p && case treeUnderCursor p t of
+            Just EndOfProgram -> False
+            Just Assignment{} -> False
+            _ -> True
+
+validateProgram :: Token -> Path -> Bool
+validateProgram EndOfProgram _ = False
+validateProgram t p = maybeToBool (valAssign emptyContext t) && validateSTLCPath t p
 
 typeEquality :: Type -> Type -> Bool
 typeEquality UnknownT _ = True

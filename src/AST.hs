@@ -51,8 +51,7 @@ searchTree :: Tree a => (a -> Bool) -> a -> [a]
 searchTree f t = [t | f t] ++ (searchTree f =<< children t)
 
 search :: Tree a => (a -> Bool) -> a -> [Path]
-search test tree = if test tree then [[]] else []
-                   ++ join [fmap (n:) p | (n,p) <- zip [0..] (fmap (search test) (children tree))]
+search test tree = if test tree then [[]] else join [fmap (n:) p | (n,p) <- zip [0..] (fmap (search test) (children tree))]
 
 treeUnderCursor :: Tree a => Path -> a -> Maybe a
 treeUnderCursor [] t     = Just t

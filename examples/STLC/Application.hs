@@ -16,7 +16,6 @@ import AST
 import Movements
 import Renderer
 import Transformations
-import Utilities
 
 import STLC.Data
 import STLC.Renderer ()
@@ -80,13 +79,13 @@ setPosition n a = a {position = positionFromPath (renderApp n a) (path a)}
 
 -- try to apply a movement
 move :: Movement Token -> App Token -> App Token
-move m a = a { path = try (m (tree a)) (path a) }
+move = partialTransform . movementToTransformation
 
 -- try to apply a transformation, commiting if the transformation leaves the
 -- data structures in a valid state
 transform :: Transformation Token -> App Token -> App Token
 transform t a = case t (tree a) (path a) of
-                     Just (newTerm, newPath) -> if validateProgram newTerm && validatePath newTerm newPath
+                     Just (newTerm, newPath) -> if validateProgram newTerm newPath
                                                 then a {tree = newTerm, path = newPath, prev = a}
                                                 else a
                      Nothing -> a
@@ -95,7 +94,7 @@ transform t a = case t (tree a) (path a) of
 -- intermediate transitions where the underlying datastructures aren't sound
 partialTransform :: Transformation Token -> App Token -> App Token
 partialTransform t a = case t (tree a) (path a) of
-                     Just (newTerm, newPath) -> if validatePath newTerm newPath
+                     Just (newTerm, newPath) -> if validateSTLCPath newTerm newPath
                                                 then a {tree = newTerm, path = newPath}
                                                 else a
                      Nothing -> a

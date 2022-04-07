@@ -27,6 +27,7 @@ import Data.Maybe
 -- evalUnderCursor = undefined
 
 removeAssignment :: Transformation Token
+removeAssignment (Assignment a b c (Assignment _ _ _ EndOfProgram)) _ = return (Assignment a b c EndOfProgram, [0])
 removeAssignment (Assignment a b c d) (3:ps) = do (d',ps') <- removeAssignment d ps
                                                   return (Assignment a b c d', 3:ps')
 removeAssignment (Assignment _ _ _ d) _ = return (applyToFreeVars (subtract 1) d, [0])
@@ -35,15 +36,14 @@ removeAssignment _ _ = Nothing
 insertAssignmentBefore :: Transformation Token
 insertAssignmentBefore (Assignment a b c d) (3:ps) = do (d',ps') <- insertAssignmentBefore d ps
                                                         return (Assignment a b c d', 3:ps')
-insertAssignmentBefore (Assignment a b c d) [] = return (Assignment (Name Nothing) Unknown Unknown (Assignment a b c d), [0])
-insertAssignmentBefore (Assignment a b c d) (p:ps) = return (Assignment (Name Nothing) Unknown Unknown (Assignment a b c d), p+1:ps)
-insertAssignmentBefore _ _ = Nothing
+insertAssignmentBefore a [] = return (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) a), [0])
+insertAssignmentBefore a (p:ps) = return (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) a), p+1:ps)
 
 insertAssignmentAfter :: Transformation Token
 insertAssignmentAfter (Assignment a b c d) (3:ps) = do (d',ps') <- insertAssignmentAfter d ps
                                                        return (Assignment a b c d', 3:ps')
-insertAssignmentAfter (Assignment a b c d) [] = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown d), [])
-insertAssignmentAfter (Assignment a b c d) (p:ps) = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown d), p:ps)
+insertAssignmentAfter (Assignment a b c d) [] = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) d)), [])
+insertAssignmentAfter (Assignment a b c d) (p:ps) = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) d)), p:ps)
 insertAssignmentAfter _ _ = Nothing
 
 
@@ -106,18 +106,19 @@ typeToArity (FunctionType _ t) = fmap (+1) (typeToArity t)
 typeToArity BoolType = Just 0
 typeToArity _ = Nothing
 
-contextAtPoint :: Path -> Token -> Maybe [Token]
-contextAtPoint [] _ = Just []
-contextAtPoint (3:ns) (Assignment _ t _ c) = fmap (++[t]) (contextAtPoint ns c)
-contextAtPoint (2:ns) (Function _ t b) = fmap (++[t]) (contextAtPoint ns b)
-contextAtPoint (n:ns) t = do child <- select n t
-                             contextAtPoint ns child
+-- need to fix this so identifiers which haven't been named cannot be used
+contextAtPoint :: Path -> Token -> [Maybe Token]
+contextAtPoint [] _ = []
+contextAtPoint (3:ns) (Assignment _ t _ c) =  contextAtPoint ns c ++ [Just t]
+contextAtPoint (2:ns) (Function _ t b) = contextAtPoint ns b ++ [Just t]
+contextAtPoint (n:ns) t = fromMaybe [] (do child <- select n t
+                                           return (contextAtPoint ns child))
 
 functionCalls :: Path -> Token -> [Token]
-functionCalls p t = concat [ fmap (app i) [0..(fromMaybe 0 (typeToArity x))] | (x,i) <- zip context [0..]]
+functionCalls p t = concat [ fmap (app i) [0..(fromMaybe 0 (typeToArity x))] | (x,i) <- zip (catMaybes context) [0..]]
         where app x 0 = Identifier x
               app x m = Application (app x (m-1)) Unknown
-              context = fromMaybe [] (contextAtPoint p t)
+              context = contextAtPoint p t
 
 standardTerms :: [Token]
 standardTerms = [ TrueTerm
@@ -129,7 +130,7 @@ standardTerms = [ TrueTerm
                 , Unknown ]
 
 termTypeChecks :: Token -> Path -> Token -> Bool
-termTypeChecks t' p t = maybe False validateProgram (replaceAtPoint t p t')
+termTypeChecks t' p t = maybe False (`validateProgram` p) (replaceAtPoint t p t')
 
 possibleTerms :: Token -> Path -> [Token]
 possibleTerms t p = filter (termTypeChecks t p) (functionCalls p t ++ standardTerms)

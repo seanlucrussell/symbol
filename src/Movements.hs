@@ -60,5 +60,5 @@ selectNext'' [] = []
 selectNext'' p = init p ++ [last p + 1]
 
 goUp'' :: Path -> Path
-goUp'' (_:ps) = ps
 goUp'' [] = []
+goUp'' p = init p

@@ -47,12 +47,12 @@ appEvent file d (B.VtyEvent (V.EvKey e [] )) =
 appEvent _ d _ = Brick.Main.continue d
 
 stateDataFromString :: String -> Maybe (App Token)
-stateDataFromString s = do (program, p) <- deserialize s
-                           let state = App program p Nothing Continue homeHandler state in
+stateDataFromString s = do program <- deserialize s
+                           let state = App program [0] Nothing Continue homeHandler state in
                                return state
 
 serializeToFile :: String -> App Token -> IO ()
-serializeToFile f a = writeFile f (serialize (tree a, path a))
+serializeToFile f a = writeFile f (serialize (tree a))
 
 emptyState :: App Token
 emptyState = let state = App (Assignment (Name Nothing) Unknown Unknown EndOfProgram)
@@ -63,7 +63,8 @@ emptyState = let state = App (Assignment (Name Nothing) Unknown Unknown EndOfPro
                              state in state
 
 theMap :: A.AttrMap
-theMap = A.attrMap V.defAttr [ (L.listSelectedAttr, B.bg V.brightBlack) ]
+theMap = A.attrMap V.defAttr [ (L.listSelectedAttr, B.bg V.brightBlack)
+                             ]
 
 theApp :: String -> Brick.Main.App (App Token) e Name
 theApp file = Brick.Main.App

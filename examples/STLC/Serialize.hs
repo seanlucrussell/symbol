@@ -5,14 +5,11 @@ module STLC.Serialize
    where
 
 import STLC.Data
-import AST hiding (Tree)
 
 import Text.Read
 import Text.ParserCombinators.Parsec
 
 data Tree a = Tree a [Tree a]
-
-type S = (Token, Path)
 
 tokenToTree :: Token -> Tree String
 tokenToTree (Identifier n) = Tree ("Id:" ++ show n) []
@@ -58,23 +55,17 @@ serializeTree t = serializeWithIndents t 0
               serializeWithIndents (Tree value subtrees) n = replicate n ' ' ++ foldl (subtreeFold (n+1)) ("(" ++ value) subtrees ++ ")"
               subtreeFold n b a = b ++ "\n" ++ serializeWithIndents a n
 
-pathToTree :: Path -> Tree String
-pathToTree path = Tree "Path" (fmap intToTree path)
-        where intToTree n = Tree (show n) []
-
-serialize :: S -> String
-serialize (program, path) = serializeTree (Tree "Data" [ tokenToTree program
-                                                              , pathToTree path])
-
+serialize :: Token -> String
+serialize = serializeTree . tokenToTree
 
 -- deserializer
-
-whitespace :: Parser [Char]
-whitespace = many $ oneOf " \n\t"
 
 -- <tree>  := (<token> <tree>*)
 -- <token> := [a-zA-Z0-9:]+
 -- need to do strings too
+
+whitespace :: Parser [Char]
+whitespace = many $ oneOf " \n\t"
 
 treeParser :: Parser (Tree String)
 treeParser = do _ <- char '('
@@ -90,21 +81,5 @@ deserializeTree s = case parse treeParser "tree" s of
                         Left _ -> Nothing
                         Right t -> Just t
 
-treeToPath :: Tree String -> Maybe Path
-treeToPath (Tree "Path" subtrees) = mapM treeToInt subtrees
-        where treeToInt (Tree n []) = readMaybe n
-              treeToInt _ = Nothing
-treeToPath _ = Nothing
-
--- path should point to a valid location in the program
-deserialize :: String -> Maybe S
-deserialize s = do tree <- deserializeTree s
-                   case tree of
-                        Tree "Data" [b,c] -> do program <- treeToToken b
-                                                path <- treeToPath c
-                                                return (program, path)
-                        _ -> Nothing
-                        
-
--- test serializer:
--- putStrLn $ serialize ((Data.Map.fromList [(43466,"not"),(932005,"and")]), ((Tree Program [Tree Assignment [Tree (Identifier 4245) [], Tree Unknown [], Tree TrueTerm []]]), [4,3,2,1,0,0,0,3]))
+deserialize :: String -> Maybe Token
+deserialize s = deserializeTree s >>= treeToToken

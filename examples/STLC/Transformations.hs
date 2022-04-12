@@ -6,48 +6,19 @@ module STLC.Transformations
   , insertAssignmentBefore
   , insertAssignmentAfter
   , removeAssignment
-  , selectFirst'
-  , selectNext'
-  , selectPrev'
-  , nextLeaf'
-  , prevLeaf'
-  , goUp'
   ) where
 
 import AST
 import Utilities
 import Transformations
-import Movements
 
 import STLC.TypeChecker
 import STLC.Data
 
 import Data.Maybe
 
--- contextDepth :: Path -> Token -> Maybe Int
--- contextDepth p t = fmap length (contextAtPoint p t)
--- 
--- evalStep :: Transformation Token -- remember, we need to take into account changes to path
--- evalStep = undefined
--- 
--- evalUnderCursor :: Transformation Token
--- evalUnderCursor = undefined
-
-selectFirst' :: Tree a => Transformation a
-selectFirst' = movementToTransformation selectFirst 
-selectNext' :: Tree a => Transformation a
-selectNext' = movementToTransformation selectNext
-selectPrev' :: Tree a => Transformation a
-selectPrev' = movementToTransformation selectPrev
-nextLeaf' :: Tree a => Transformation a
-nextLeaf' = movementToTransformation nextLeaf
-prevLeaf' :: Tree a => Transformation a
-prevLeaf' = movementToTransformation prevLeaf
-goUp' :: Tree a => Transformation a
-goUp' = movementToTransformation goUp
-
 removeAssignment :: Transformation Token
-removeAssignment (Assignment a b c (Assignment _ _ _ EndOfProgram)) _ = return (Assignment a b c EndOfProgram, [0])
+removeAssignment (Assignment a b c (Assignment _ _ _ EndOfProgram)) (3:_) = return (Assignment a b c EndOfProgram, [0])
 removeAssignment (Assignment a b c d) (3:ps) = do (d',ps') <- removeAssignment d ps
                                                   return (Assignment a b c d', 3:ps')
 removeAssignment (Assignment _ _ _ d) _ = return (applyToFreeVars (subtract 1) d, [0])
@@ -56,14 +27,15 @@ removeAssignment _ _ = Nothing
 insertAssignmentBefore :: Transformation Token
 insertAssignmentBefore (Assignment a b c d) (3:ps) = do (d',ps') <- insertAssignmentBefore d ps
                                                         return (Assignment a b c d', 3:ps')
-insertAssignmentBefore a [] = return (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) a), [0])
-insertAssignmentBefore a (p:ps) = return (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) a), p+1:ps)
+insertAssignmentBefore a path = return (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) a), newPath)
+    where newPath = case path of
+                [] -> [0]
+                ps -> 3:ps
 
 insertAssignmentAfter :: Transformation Token
 insertAssignmentAfter (Assignment a b c d) (3:ps) = do (d',ps') <- insertAssignmentAfter d ps
                                                        return (Assignment a b c d', 3:ps')
-insertAssignmentAfter (Assignment a b c d) [] = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) d)), [])
-insertAssignmentAfter (Assignment a b c d) (p:ps) = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) d)), p:ps)
+insertAssignmentAfter (Assignment a b c d) p     = return (Assignment a b c (Assignment (Name Nothing) Unknown Unknown (applyToFreeVars (+1) d)), p)
 insertAssignmentAfter _ _ = Nothing
 
 

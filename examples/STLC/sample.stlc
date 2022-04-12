@@ -1,33 +1,26 @@
-(Data
+(Assign
+ (Name:asdf)
+ (BoolT)
+ (F)
  (Assign
-  (Name:asdf)
-  (BoolT)
-  (F)
-  (Assign
-   (Name:not)
-   (FnT
-    (Unknown)
-    (BoolT))
+  (Name:not)
+  (FnT
    (Unknown)
-   (Assign
-    (EmptyName)
-    (Unknown)
-    (App
-     (Id:0)
-     (If
+   (BoolT))
+  (Unknown)
+  (Assign
+   (EmptyName)
+   (Unknown)
+   (App
+    (Id:0)
+    (If
+     (App
+      (Id:0)
       (App
        (Id:0)
-       (App
-        (Id:0)
-        (T)))
-      (App
-       (Id:0)
-       (F))
-      (F)))
-    (EOP))))
- (Path
-  (3)
-  (3)
-  (2)
-  (1)
-  (2)))
+       (T)))
+     (App
+      (Id:0)
+      (F))
+     (F)))
+   (EOP))))

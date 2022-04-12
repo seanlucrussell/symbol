@@ -10,6 +10,7 @@ module STLC.Application
   , SymbolAppInput
   , ApplicationInput (..)
   , ApplicationOutput (..)
+  , renderApp
   , getPosition
   ) where
 
@@ -57,7 +58,7 @@ renderApp :: Int -> App Token -> Rendering
 renderApp windowWidth a = render windowWidth (tree a,[] :: [String])
 
 updateName :: String -> App Token -> App Token
-updateName s a = partialTransform (replaceAtPoint' (Name (Just s))) (a {next = addingNameHandler s})
+updateName s a = partialTransform (transformAtPoint (Name (Just s))) (a {next = addingNameHandler s})
 
 setPopupSelection :: [Token] -> Int -> App Token -> App Token
 setPopupSelection l n a = a {popupData = Just (l,mod n (Prelude.length l)), next = selectingTermHandler l n}
@@ -134,7 +135,7 @@ addingNameHandler _ ( _     ,_) a = a
 
 selectingTermHandler :: [Token] -> Int -> FoldMachine
 selectingTermHandler _ _ (Key 'p',_) a = closePopup a
-selectingTermHandler l n (Enter    ,_) a = transform (replaceAtPoint' (l!!n)) (closePopup a)
+selectingTermHandler l n (Enter    ,_) a = transform (transformAtPoint (l!!n)) (closePopup a)
 selectingTermHandler l n (Key 'k',_) a = setPopupSelection l (n-1) a
 selectingTermHandler l n (Key 'j',_) a = setPopupSelection l (n+1) a
 selectingTermHandler l n (UpArrow  ,_) a = setPopupSelection l (n-1) a
@@ -145,12 +146,12 @@ saveHandler :: FoldMachine -> FoldMachine
 saveHandler f i a = f i (a {output = Continue})
 
 homeHandler :: FoldMachine
-homeHandler (Tab       ,_) a = partialTransform nextLeaf' a
-homeHandler (BackTab   ,_) a = partialTransform prevLeaf' a
-homeHandler (Key 'j' ,_) a = partialTransform selectFirst' a
-homeHandler (Key 'l' ,_) a = partialTransform selectNext' a
-homeHandler (Key 'h' ,_) a = partialTransform selectPrev' a
-homeHandler (Key 'k' ,_) a = partialTransform goUp' a
+homeHandler (Tab       ,_) a = partialTransform nextLeaf a
+homeHandler (BackTab   ,_) a = partialTransform prevLeaf a
+homeHandler (Key 'j' ,_) a = partialTransform selectFirst a
+homeHandler (Key 'l' ,_) a = partialTransform selectNext a
+homeHandler (Key 'h' ,_) a = partialTransform selectPrev a
+homeHandler (Key 'k' ,_) a = partialTransform goUp a
 homeHandler (Key 's' ,_) a = transform swapAssignmentUp a
 homeHandler (Key 'S' ,_) a = transform swapAssignmentDown a
 homeHandler (Key 'x' ,_) a = transform removeAssignment a
@@ -164,12 +165,12 @@ homeHandler (Esc       ,_) a = a {output = Terminate}
 -- homeHandler (DownArrow ,n) a = setPath n (changePosition selectDown a)
 homeHandler (Key 'r' ,_) a = if overIdentifier a then updateName "" a else a
 homeHandler (Key 'p' ,_) a = if overIdentifier a then a else setPopupSelection (possibleTerms (tree a) (path a)) 0 a
-homeHandler (Key '?' ,_) a = transform (replaceAtPoint' Unknown) a
-homeHandler (Key 't' ,_) a = transform (replaceAtPoint' TrueTerm) a
-homeHandler (Key 'f' ,_) a = transform (replaceAtPoint' FalseTerm) a
-homeHandler (Key 'b' ,_) a = transform (replaceAtPoint' BoolType) a
-homeHandler (Key '>' ,_) a = transform (replaceAtPoint' (FunctionType Unknown Unknown)) a
-homeHandler (Key '\\',_) a = transform (replaceAtPoint' (Function Unknown Unknown Unknown)) a
+homeHandler (Key '?' ,_) a = transform (transformAtPoint Unknown) a
+homeHandler (Key 't' ,_) a = transform (transformAtPoint TrueTerm) a
+homeHandler (Key 'f' ,_) a = transform (transformAtPoint FalseTerm) a
+homeHandler (Key 'b' ,_) a = transform (transformAtPoint BoolType) a
+homeHandler (Key '>' ,_) a = transform (transformAtPoint (FunctionType Unknown Unknown)) a
+homeHandler (Key '\\',_) a = transform (transformAtPoint (Function Unknown Unknown Unknown)) a
 homeHandler (_         ,_) a = a
 
 stateHandler :: FoldMachine

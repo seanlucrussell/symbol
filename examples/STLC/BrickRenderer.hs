@@ -85,15 +85,31 @@ instance Ord Name where
   _ <= _ = True
 
 drawUI :: App Token -> [Widget Name]
-drawUI a = (case popupData a of
-     Just (l, n) -> [dropdown l n]
-     _ -> []) ++ [drawMainWindow (path a) (tree a,[] :: [String])]
-     where dropdown l n = Brick.Widget Brick.Fixed  Brick.Fixed
+drawUI a = [drawDropdown a, drawMainWindow a]
+
+currentLine :: Int -> App Token -> Int
+currentLine n = snd . getPosition n
+lineCount :: Int -> App Token -> Int
+lineCount n a = maximum (fmap snd (keys (renderApp n a)))
+
+drawStatusBar :: App Token -> Widget Name
+drawStatusBar a = modifyDefAttr (const $  defAttr `withStyle` standout) $ vLimit 1 $ Brick.hBox
+                [ Brick.Widget Brick.Fixed Brick.Fixed lineNumWidget
+                , Brick.fill ' '
+                , str " Press 'h' for help "
+                ]
+            where lineNumWidget = do ctx <- Brick.getContext
+                                     let w = Brick.availWidth ctx
+                                     Brick.render $ Brick.str ("Line " ++ show (currentLine w a + 1) ++ " of " ++ show (lineCount w a + 1)) 
+
+drawMainWindow :: App Token -> Widget Name
+drawMainWindow a = Brick.reportExtent MainWindowName (renderAsWidgetWithHighlight (path a) (tree a, [] :: [String])) Brick.<=> Brick.fill ' ' Brick.<=> drawStatusBar a
+
+drawDropdown :: App Token -> Widget Name
+drawDropdown a = maybe Brick.emptyWidget d (popupData a)
+         where d (l,n) = Brick.Widget Brick.Fixed  Brick.Fixed
                      (do ctx <- Brick.getContext
                          Brick.render $ popup (renderContextAtPoint (path a) (tree a)) (getPosition (ctx^.Brick.availWidthL) a) (L.listMoveBy n (L.list PopupName (Vec.fromList l) 1)))
-
-drawMainWindow :: Render a => Path -> a -> Widget Name
-drawMainWindow p = Brick.reportExtent MainWindowName . renderAsWidgetWithHighlight p
 
 popup :: [String] -> (Int, Int) -> L.List Name Token -> Widget Name
 popup renderContext (x,y) l =  Brick.translateBy (Brick.Location (x-1,y+1)) $ B.border $ hLimit 50 box

@@ -111,6 +111,34 @@ first place. i.e. with the assignment, the first thing MUST be a declaration.
 nothing else makes sense. same thing goes for aything with a list in it. the
 list of function args MUST exist and be a list
 
+### New thoughts
+
+- Split types into different syntactic data, e.g. expressions, statements, types
+- Create class for finite selections. E.g. you can select one of a finite number
+  of things to create a statement, like a function call, basic operator, value,
+  function definition, et cetera
+- Finite selections should have 2 representations; simple, compatible with ascii
+  completions. and rendered, which can use unicode and look pretty
+- Have another class or something for stringable things. have functions that
+  validate strings, and perhaps something that can validate partial strings. or
+  maybe a datatype? idk
+- position should be represented w/ coordinates in 3d space. x and y represent
+  position on screen, z represents layer. Good way to do trees.
+- no more modal editing. instead we will have shortcuts to access diffferent
+  things. like C-s to save, C-h for help. C-o to insert statement after, C-O to
+  insert statement before. Input will be done via autocomplete, and when you hit
+  any of tab, enter, or space you will move on to the next element.
+- Postfix operators. Things like +, -, *, :, can be modeled as postfix
+  operators. Maybe we want to use them as such.
+- Better architecture: split app state -> view pipeline more. app state should
+  go to a view, where we aggregate all relevant data and do computations. that
+  then gets passed to a viewer or something, that renders the view to some
+  backend. this way the renderer is doing minimal calculations, and none that
+  involve the app itself.
+- Use Brick.Widgets.Edit for string editing. I think we can just change the
+  renderer and application without having to rework the underlying AST
+  datatypes.
+
 ### User interface considerations
 
 So i think the ideal interface would consist of a couple of parts:

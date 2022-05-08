@@ -25,6 +25,17 @@ import qualified Brick.Widgets.List as L
 import qualified Data.Vector as Vec
 import Lens.Micro
 
+data View = View { currentLineNumber :: Int 
+                 , totalLineCount :: Int 
+                 }
+
+renderView :: View -> [Widget Name]
+renderView = undefined
+
+generateView :: App Token -> View
+generateView = undefined
+
+
 xMin :: Map (Int,Int) t -> Int
 xMin = minimum . fmap fst . keys
 
@@ -55,7 +66,7 @@ grid :: Map (Int,Int) t -> t -> [[t]]
 grid m d = [ [fromMaybe d (Data.Map.lookup (x,y) m) | y <- [yMin m..yMax m] ] | x <- [xMin m..xMax m]]
 
 cellToWidget :: Cell -> Widget Name
-cellToWidget (Cell c Highlight _) = modifyDefAttr (const $  defAttr `withStyle` standout) (str [c])
+cellToWidget (Cell c Highlight _) = Brick.visible $ modifyDefAttr (const $  defAttr `withStyle` standout) (str [c])
 cellToWidget (Cell c Yellow _) = modifyDefAttr (const $  defAttr `withForeColor` yellow) (str [c])
 cellToWidget (Cell c White _) = modifyDefAttr (const $  defAttr `withForeColor` white) (str [c])
 cellToWidget (Cell c Green _) = modifyDefAttr (const $  defAttr `withForeColor` green) (str [c])
@@ -77,7 +88,7 @@ renderingToWidget r = vBox (fmap (Prelude.foldr (Brick.<+>) Brick.emptyWidget) (
 -- more info on vty styling (bold, underline, etc):
 -- https://hackage.haskell.org/package/vty-5.29/docs/Graphics-Vty-Attributes.html
 
-data Name = MainWindowName | PopupName deriving (Eq, Show)
+data Name = MainWindowName | MainWindowViewport | PopupName deriving (Eq, Show)
 
 instance Ord Name where
   MainWindowName <= PopupName = True
@@ -103,7 +114,7 @@ drawStatusBar a = modifyDefAttr (const $  defAttr `withStyle` standout) $ vLimit
                                      Brick.render $ Brick.str ("Line " ++ show (currentLine w a + 1) ++ " of " ++ show (lineCount w a + 1)) 
 
 drawMainWindow :: App Token -> Widget Name
-drawMainWindow a = Brick.reportExtent MainWindowName (renderAsWidgetWithHighlight (path a) (tree a, [] :: [String])) Brick.<=> Brick.fill ' ' Brick.<=> drawStatusBar a
+drawMainWindow a = Brick.reportExtent MainWindowName (Brick.viewport MainWindowViewport Brick.Vertical $ renderAsWidgetWithHighlight (path a) (tree a, [] :: [String])) Brick.<=> drawStatusBar a
 
 drawDropdown :: App Token -> Widget Name
 drawDropdown a = maybe Brick.emptyWidget d (popupData a)

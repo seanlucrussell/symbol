@@ -46,10 +46,11 @@ data App a = App
                 , path :: Path
                 , popupData :: Maybe (PopupData a)
                 , output :: ApplicationOutput
-                , next :: FoldMachine
+                , next :: Continuation
                 , prev :: App a
                 }
-type FoldMachine = SymbolAppInput -> App Token -> App Token
+                
+type Continuation = SymbolAppInput -> App Token -> App Token
 
 closePopup :: App Token -> App Token
 closePopup a = a {popupData = Nothing, next = homeHandler}
@@ -127,13 +128,13 @@ overIdentifier a = case treeUnderCursor (path a) (tree a) of
                         Just (Name _) -> True
                         _ -> False
 
-addingNameHandler :: String -> FoldMachine
+addingNameHandler :: String -> Continuation
 addingNameHandler s (Key k,_) a = if isAlphaNum k then updateName (s ++ [k]) a else a
 addingNameHandler s (Enter  ,_) a = if s /= "" then a {next = homeHandler} else a
 addingNameHandler s (Del    ,_) a = if s /= "" then updateName (Prelude.init s) a else a
 addingNameHandler _ ( _     ,_) a = a
 
-selectingTermHandler :: [Token] -> Int -> FoldMachine
+selectingTermHandler :: [Token] -> Int -> Continuation
 selectingTermHandler _ _ (Key 'p',_) a = closePopup a
 selectingTermHandler l n (Enter    ,_) a = transform (transformAtPoint (l!!n)) (closePopup a)
 selectingTermHandler l n (Key 'k',_) a = setPopupSelection l (n-1) a
@@ -142,10 +143,10 @@ selectingTermHandler l n (UpArrow  ,_) a = setPopupSelection l (n-1) a
 selectingTermHandler l n (DownArrow,_) a = setPopupSelection l (n+1) a
 selectingTermHandler _ _ (_        ,_) a = a
 
-saveHandler :: FoldMachine -> FoldMachine
+saveHandler :: Continuation -> Continuation
 saveHandler f i a = f i (a {output = Continue})
 
-homeHandler :: FoldMachine
+homeHandler :: Continuation
 homeHandler (Tab       ,_) a = partialTransform nextLeaf a
 homeHandler (BackTab   ,_) a = partialTransform prevLeaf a
 homeHandler (Key 'j' ,_) a = partialTransform selectFirst a
@@ -173,5 +174,5 @@ homeHandler (Key '>' ,_) a = transform (transformAtPoint (FunctionType Unknown U
 homeHandler (Key '\\',_) a = transform (transformAtPoint (Function Unknown Unknown Unknown)) a
 homeHandler (_         ,_) a = a
 
-stateHandler :: FoldMachine
+stateHandler :: Continuation
 stateHandler k a = next a k a
